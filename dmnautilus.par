@@ -1,0 +1,10 @@
+infile,f,a,"/data/pipes/regression_test/indata/dmnautilus/acisf00650N002_cntr_img2.fits",,,"Input image"
+outfile,f,a,"/pool14/kjg/linux/dmnautilus/test_simple.fits",,,"Output file name"
+snr,r,a,10,0,,"SNR limit"
+inerrfile,f,h,"",,,"Input error on image"
+outmaskfile,f,h,"/pool14/kjg/linux/dmnautilus/test_simple.msk",,,"Output mask image"
+outsnrfile,f,h,"/pool14/kjg/linux/dmnautilus/test_simple.snr",,,"Output SNR image"
+outareafile,f,h,"/pool14/kjg/linux/dmnautilus/test_simple.area",,,"Output area image"
+verbose,i,h,0,0,0,"Tool verbosity"
+clobber,b,h,yes,,,"Clobber outputs"
+mode,s,h,"ql",,,

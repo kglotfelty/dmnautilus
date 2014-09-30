@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE cxchelptopics SYSTEM "CXCHelp.dtd">
+<cxchelptopics>
+   <ENTRY context="tools" key="dmnautilus" refkeywords="dm adaptive binning grouping group recursive shell quad tree nautilus" seealsogroups="dmimgtools">
+   <SYNOPSIS>
+	Perform a quad-tree adaptive binning on 2D images
+   </SYNOPSIS>
+   <SYNTAX>
+      <LINE>
+	dmnautilus infile outfile snr [inerrfile] [outmaskfile]
+	[outsnrfile] [outareafile] [verbose] [clobber]
+      </LINE>
+   </SYNTAX>
+   <DESC>
+      <PARA>
+	`dmnautilus' does a form of adaptive binning of a 2D image
+	known as a 'quad-tree' algorithm.  A detailed description of
+	the technique can be found in Samet, H. "The Quadtree and
+	Related Hierarchical Data Structures", 1984, ACM Computing 
+	Surveys, 16, 187.  
+      </PARA>
+
+      <PARA>
+	The tool looks at the entire image and computes the
+	signal-to-noise ratio (SNR). If the SNR is greater than the
+	input threshold, the image is divided in half in both the
+	horizontal and vertical directions.  For each sub-image, the
+	process is repeated until the SNR drops below the
+	user-supplied value or a single pixel remains above the SNR
+	limit. 	The output pixels are then the sum of the pixels in
+	the sub-image divided by the area of the sub-image.  The tool
+	can also optionally output the area, snr, and a mask/group
+	number for each output pixel. 
+	</PARA>
+
+      <PARA>
+	Pixels that fall outside of the data subspace, NaNs, and
+	integer NULL value pixels are all ignored when computing the
+	sum, area and SNR. 
+      </PARA>
+
+	<PARA>
+	  While square images will give the most natural-looking
+	  binning, rectangular images can be input and rectangular
+	  bins will be used.  
+	</PARA>
+
+	<PARA>
+	 If no error file is supplied (inerrfile parameter), then a
+	 Gaussian approximation "(sqrt(image value))" is used. If an
+	 error file is supplied, it must be the same size as the input
+	 image.   
+      </PARA>
+
+	<PARA>
+	The output mask file can be used with 
+	<HREF link="http://cxc.harvard.edu/ciao/ahelp/dmmaskbin.html">dmmaskbin</HREF> to group
+	another image of the same dimensions using the same bin
+	sizes.  This is useful say to group the data based on
+	broad-band energy filter and then group narrow band images
+	using the same grouping scheme.
+	</PARA>
+
+   </DESC>
+   <QEXAMPLELIST>
+      <QEXAMPLE>
+         <SYNTAX>
+            <LINE>
+	dmnautilus inimg.fits outimg.fits 9
+            </LINE>
+         </SYNTAX>
+         <DESC>
+            <PARA>
+	  Adaptivly bins the image in inimg.fits to a SNR threshold of
+	  9.  Since no error image is supplied the SNR is computed as
+	  the sqrt(inimg.fits).
+            </PARA>
+         </DESC>
+      </QEXAMPLE>
+      <QEXAMPLE>
+         <SYNTAX>
+            <LINE>
+	dmnautilus inimg.fits outimg.fits 15 inerr=errs.fits
+            </LINE>
+         </SYNTAX>
+         <DESC>
+            <PARA>
+	Bins the input image to a SNR threshold of 15.  The error of
+	each pixel is  taken from the errs.fits file.
+            </PARA>
+         </DESC>
+      </QEXAMPLE>
+      <QEXAMPLE>
+         <SYNTAX>
+            <LINE>
+	dmnautilus inimg.fits outimg.fits 9 outmaskfile=mask.fits
+            </LINE>
+         </SYNTAX>
+         <DESC>
+            <PARA>
+	Similar to Example 1 but outputs the mask information.  Each
+	pixel in the mask.fits file indicates which group the pixel
+	was assigned to.
+            </PARA>
+         </DESC>
+      </QEXAMPLE>
+      <QEXAMPLE>
+         <SYNTAX>
+            <LINE>
+	dmnautilus inimg.fits . 9 outmask=. outsnr=. outarea=.
+            </LINE>
+         </SYNTAX>
+         <DESC>
+            <PARA>
+	Similar to above but also outputs the output SNR threshold
+	image and the area image.  It uses autonaming to name the
+	outfile, outmaskfile, outsnrfile, and outareafile files.
+            </PARA>
+         </DESC>
+      </QEXAMPLE>
+   </QEXAMPLELIST>
+
+
+   <PARAMLIST>
+      <PARAM filetype="input" name="infile" reqd="yes" type="file">
+         <SYNOPSIS>
+	  Input 2D image
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	  Image to be adaptive binned.
+            </PARA>
+         </DESC>
+      </PARAM>
+      <PARAM autoname="yes" filetype="output" name="outfile" reqd="yes" type="file">
+         <SYNOPSIS>
+	Output adaptive binned image.
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	Output of the adaptive binning routine.  Data will be stored
+	as floating point values.
+            </PARA>
+         </DESC>
+      </PARAM>
+      <PARAM def="0" min="0" name="snr" reqd="yes" type="real">
+         <SYNOPSIS>
+	Signal-To-Noise-Ratio threshold
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	The signal to noise ration to split the image into 4
+	sub-images.  It may seem unnatural but this is an upper-limit
+	on the SNR.
+            </PARA>
+         </DESC>
+      </PARAM>
+      <PARAM filetype="input" name="inerrfile" reqd="no" type="file">
+         <SYNOPSIS>
+	   Input error image
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	      Image containing the error estimate for each pixel in
+	      infile. The square of the pixel values is used when
+	      computing the SNR.  The error image must be the same
+	      dimensionality as infile (datatype is arbitrary). 
+            </PARA>
+         </DESC>
+      </PARAM>
+      <PARAM autoname="yes" filetype="output" name="outmaskfile" reqd="no" type="file">
+         <SYNOPSIS>
+	 Image with grouping information
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	      Indicated which group number (arbitrary) the pixel belongs
+	      to.  Can be used with <HREF link="http://cxc.harvard.edu/ciao/ahelp/dmmaskbin.html">dmmaskbin</HREF> to bin another image of the same
+	      dimension using the same grouping scheme.
+	</PARA>
+         </DESC>
+      </PARAM>
+      <PARAM autoname="yes" filetype="output" name="outsnrfile" reqd="no" type="file">
+         <SYNOPSIS>
+	Image containg the SNR for each pixel/sub-image
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	The SNR value computed for each sub-image is stored in this
+	file.  Sharp edges in the SNR map can be used to detect
+	extended emission.
+            </PARA>
+         </DESC>
+      </PARAM>
+      <PARAM autoname="yes" filetype="output" name="outareafile" reqd="no" type="file">
+         <SYNOPSIS>
+	The area (in number of pixels) of each sub-image.
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	The area of each sub-image is stored.  This can be useful to
+	exclude particularly large regions where statistics may
+	dominate the analysis or to remove data from the edge of the
+	image.
+            </PARA>
+         </DESC>
+      </PARAM>
+      <PARAM def="0" max="0" min="0" name="verbose" reqd="no" type="integer">
+         <SYNOPSIS>
+	Tool chatter level
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	Currently disabled.
+            </PARA>
+         </DESC>
+      </PARAM>
+      <PARAM def="no" name="clobber" reqd="no" type="boolean">
+         <SYNOPSIS>
+	Remove existing outputs?
+         </SYNOPSIS>
+         <DESC>
+            <PARA>
+	Remove existing output files if they already exist?
+            </PARA>
+         </DESC>
+      </PARAM>
+   </PARAMLIST>
+
+
+   <BUGS><PARA>
+	See the
+        <HREF link="http://cxc.harvard.edu/ciao/bugs/dmnautilus.html">bugs page
+	for this tool</HREF>
+        on the CIAO website for an up-to-date listing of known bugs.
+      </PARA></BUGS>
+   <LASTMODIFIED>December 2013</LASTMODIFIED>
+</ENTRY>
+</cxchelptopics>
