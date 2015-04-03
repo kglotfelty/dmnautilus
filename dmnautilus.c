@@ -200,8 +200,12 @@ void abin_rec (
       ul = get_snr( xs, ys+FLOOR(yl/2.0), FLOOR(xl/2.0), CEIL(yl/2.0), &oval_ul, &npix_ul); /* up-left */
       ur = get_snr( xs+FLOOR(xl/2.0), ys+FLOOR(yl/2.0), CEIL(xl/2.0), CEIL(yl/2.0), &oval_ur, &npix_ur ); /* up-rite */
 
+      /*
+       * It is OK to split if sub-cell has no valid pixel; but not all of them.
+       * 
+       */       
 
-      ill = ( ll >= GlobalSNRThresh) || ( npix_ll == 0);
+      ill = ( ll >= GlobalSNRThresh) || ( npix_ll == 0);  
       ilr = ( lr >= GlobalSNRThresh) || ( npix_lr == 0);
       iul = ( ul >= GlobalSNRThresh) || ( npix_ul == 0);
       iur = ( ur >= GlobalSNRThresh) || ( npix_ur == 0);
