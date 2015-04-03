@@ -14,6 +14,8 @@ XML_FILES         = dmnautilus.xml
 
 SRCS	=           dmnautilus.c t_dmnautilus.c
 
+LOCAL_LIBS = -L$(MK_TOP)/da/analysis/dmtools/dmimgio/ -ldmimgio
+LOCAL_INC  = -I$(MK_TOP)/da/analysis/dmtools/dmimgio/
 
 OBJS = $(SRCS:.c=.o)
 

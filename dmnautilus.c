@@ -34,14 +34,13 @@
 #define CEIL(x)   ceil((x))
 
 regRegion *maskRegion;
-dmDescriptor *PhysDes;
 
 
 /* Okay, global variables are a bad idea, excpet when doing recursion and
  * we are passing the same data to each level ... more data gets pushed on the
  * stack and causes crashes.  Also using global variables can make it
  * run much faster so we'll bite the bullet here. */
-float *GlobalData;     /* i: data array */
+void  *GlobalData;     /* i: data array */
 float *GlobalDErr;     /* i: error array */
 float *GlobalOutData;  /* o: output array */
 float *GlobalOutArea;  /* o: output area array */
@@ -49,86 +48,55 @@ float *GlobalOutSNR;   /* o: output SNR */
 unsigned long *GlobalMask; /* o: output mask */
 long GlobalXLen;        /* i: length of x-axis (full img) */
 long GlobalYLen;        /* i: length of y-axis (full img) */
+long GlobalLAxes[2];    /* X,Y lens togeether */
 long GlobalSNRThresh;   /* i: SNR threshold */
 enum { ZERO_ABOVE=0, ONE_ABOVE, TWO_ABOVE, THREE_ABOVE, ALL_ABOVE} GlobalSplitCriteria;
+dmDataType GlobalDataType;
+dmDescriptor *GlobalXdesc=NULL;
+dmDescriptor *GlobalYdesc=NULL;
+short *GlobalPixMask=NULL;
 
 
-/* TODO:  Replace i/o with dmimgio routines incl null/nan/indef checking 
 #include "dmimgio.h"
 
-*/
+/* ----------------------------- */
+
+int load_error_image( char *errimg );
+int abin(void);
+double get_snr(long xs, long ys, long xl ,long yl, float *oval, long *area);
+void abin_rec ( long xs, long ys, long xl, long yl);   
+int convert_coords( dmDescriptor *xdesc, dmDescriptor *ydesc, long xx, long yy, double *xat, double *yat);
+
+/* ----------------------------- */
 
 
 
 
-/* Load an image into a float array */
-void get_data( dmDescriptor *inDes, long npix, float *data )
+int convert_coords( dmDescriptor *xdesc,
+                    dmDescriptor *ydesc,
+                    long xx,
+                    long yy,
+                    double *xat,
+                    double *yat
+                    )
 {
-  long ii;
-  /* Read data image */
-  switch ( dmGetDataType(inDes) ) {
-
-  case dmBYTE: {
-    unsigned char *sd = (unsigned char*)calloc(npix,sizeof(unsigned char));
-    dmGetArray_ub( inDes, sd, npix );
-    for (ii=0;ii<npix;ii++) { data[ii] = sd[ii]; }
-    free(sd);
-    break;
+  if ( xdesc ) {
+    double lgc[2];
+    double phy[2];
+    lgc[0] = xx+1;
+    lgc[1] = yy+1;
+    dmCoordCalc_d( xdesc, lgc, phy );
+    if ( ydesc ) {
+      dmCoordCalc_d( ydesc, lgc+1, phy+1 );
+    }
+    *xat = phy[0];
+    *yat = phy[1];
+  } else {
+    *xat = xx;
+    *yat = yy;
   }
-
-  case dmSHORT: {
-    short *sd = (short*)calloc(npix,sizeof(short));
-    dmGetArray_s( inDes, sd, npix );
-    for (ii=0;ii<npix;ii++) { data[ii] = sd[ii]; }
-    free(sd);
-    break;
-  }
-    
-  case dmUSHORT: {
-    unsigned short *sd = (unsigned short*)calloc(npix,sizeof(unsigned short));
-    dmGetArray_us( inDes, sd, npix );
-    for (ii=0;ii<npix;ii++) { data[ii] = sd[ii]; }
-    free(sd);
-    break;
-  }
-  case dmLONG: {
-    long *sd = (long*)calloc(npix,sizeof(long));
-    dmGetArray_l( inDes, sd, npix );
-    for (ii=0;ii<npix;ii++) { data[ii] = sd[ii]; }
-    free(sd);
-    break;
-  }
-    
-  case dmULONG: {
-    unsigned long *sd = (unsigned long*)calloc(npix,sizeof(unsigned long));
-    dmGetArray_ul( inDes, sd, npix );
-    for (ii=0;ii<npix;ii++) { data[ii] = sd[ii]; }
-    free(sd);
-    break;
-  }
-
-  case dmFLOAT: {
-    dmGetArray_f( inDes, data, npix );
-    break;
-  }
-  case dmDOUBLE: {
-    double *sd = (double*)calloc(npix,sizeof(double));
-    dmGetArray_d( inDes, sd, npix );
-    for (ii=0;ii<npix;ii++) { data[ii] = sd[ii]; }
-    free(sd);
-    break;
-  }
-
-
-  default:
-    err_msg("ERROR: Unknown datatype\n");
-    exit(-1); /* Should never get to here */
-    break;
-
-  }
-  
+  return(0);
 }
-
 
 
 
@@ -146,6 +114,7 @@ double get_snr(
   float noise;
   float locsnr;
   long ii,jj;
+  double pixval;
 
   val = 0.0;
   noise = 0.0;
@@ -166,9 +135,16 @@ double get_snr(
 
       /* TODO: check for valid pixels */
 
-      val += GlobalData[pix];
+      pixval = get_image_value( GlobalData, GlobalDataType, ii, jj,
+          GlobalLAxes, GlobalPixMask);
+      if ( ds_dNAN(pixval) ) {          
+          continue;
+      }
+      val += pixval;
       noise += ( GlobalDErr[pix] * GlobalDErr[pix] );
       *area += 1;
+
+
     }
   }
   locsnr = val / sqrt(noise);
@@ -208,28 +184,36 @@ void abin_rec (
   } else {
       /* Determine SNR for current sub-image */
 
-      /* This new method will only split the 2x2 if ALL 4 of the subimages
-       * exceed the SNR threshold 
+      /* This new method will only split the 2x2 if when the sub images
+       * are created, some/all of them will remain above the SNR limit.
+       * 
        */
       
       float ll, lr, ul, ur;
       float oval_ll, oval_lr, oval_ul, oval_ur;
-      long npix;  
+      long npix_ll, npix_lr, npix_ul, npix_ur;
+
       short ill, ilr, iul, iur;
 
-      ll = get_snr( xs, ys, FLOOR(xl/2.0), FLOOR(yl/2.0), &oval_ll, &npix ); /* low-left */
-      lr = get_snr( xs+FLOOR(xl/2.0), ys, CEIL(xl/2.0), FLOOR(yl/2.0), &oval_lr, &npix ); /* low-rite*/
-      ul = get_snr( xs, ys+FLOOR(yl/2.0), FLOOR(xl/2.0), CEIL(yl/2.0), &oval_ul, &npix); /* up-left */
-      ur = get_snr( xs+FLOOR(xl/2.0), ys+FLOOR(yl/2.0), CEIL(xl/2.0), CEIL(yl/2.0), &oval_ur, &npix ); /* up-rite */
+      ll = get_snr( xs, ys, FLOOR(xl/2.0), FLOOR(yl/2.0), &oval_ll, &npix_ll ); /* low-left */
+      lr = get_snr( xs+FLOOR(xl/2.0), ys, CEIL(xl/2.0), FLOOR(yl/2.0), &oval_lr, &npix_lr ); /* low-rite*/
+      ul = get_snr( xs, ys+FLOOR(yl/2.0), FLOOR(xl/2.0), CEIL(yl/2.0), &oval_ul, &npix_ul); /* up-left */
+      ur = get_snr( xs+FLOOR(xl/2.0), ys+FLOOR(yl/2.0), CEIL(xl/2.0), CEIL(yl/2.0), &oval_ur, &npix_ur ); /* up-rite */
 
-      ill = ( ll >= GlobalSNRThresh);
-      ilr = ( lr >= GlobalSNRThresh);
-      iul = ( ul >= GlobalSNRThresh);
-      iur = ( ur >= GlobalSNRThresh);
 
-      if ( ONE_ABOVE == GlobalSplitCriteria ) {
+      ill = ( ll >= GlobalSNRThresh) || ( npix_ll == 0);
+      ilr = ( lr >= GlobalSNRThresh) || ( npix_lr == 0);
+      iul = ( ul >= GlobalSNRThresh) || ( npix_ul == 0);
+      iur = ( ur >= GlobalSNRThresh) || ( npix_ur == 0);
+
+        /* If there are no pixels, no reason to recurse */
+      if ((npix_ll+npix_lr+npix_ul+npix_ur) ==0 ) {
+          check =0; 
+
+      } else if ( ONE_ABOVE == GlobalSplitCriteria ) {
           /* If any one of the sub images is above snr, then split */
           check = ( ill + ilr + iul + iur  );            
+
       } else if ( TWO_ABOVE == GlobalSplitCriteria ) {
           /* If two, then they have to be side-by side, not diagonal */
          check = ( (ill && ilr ) || 
@@ -237,15 +221,19 @@ void abin_rec (
                    (iur && iul ) ||
                    (iul && ill )
                   ); 
+
       } else if ( THREE_ABOVE == GlobalSplitCriteria ) {
           check = ( ill + ilr + iul + iur ) >= 3 ? 1 : 0;
 
       } else if ( ALL_ABOVE == GlobalSplitCriteria ) {
           check = ( ill + ilr + iul + iur ) == 4 ? 1 : 0;
+
       } else {
           err_msg("This should not have happened, something's amiss");
           return;
       }
+
+        
       
   } // end else 
 
@@ -268,6 +256,7 @@ void abin_rec (
     long ii,jj;
     float val;
     long area;
+    double pixval;
 
     locsnr = get_snr( xs, ys, xl, yl, &val, &area );
 
@@ -289,14 +278,24 @@ void abin_rec (
       }
 
     pix = ii+(jj*GlobalXLen);
-    GlobalOutData[pix] = val;
-    GlobalOutArea[pix] = area;
-    GlobalMask[pix] = mask_no;
-    GlobalOutSNR[pix] = locsnr;
+
+      pixval = get_image_value( GlobalData, GlobalDataType, ii, jj,
+          GlobalLAxes, GlobalPixMask);
+
+      if ( ds_dNAN(pixval) ) {
+        GlobalOutData[pix] = pixval;
+        GlobalOutArea[pix] = pixval;
+        GlobalMask[pix] = 0;
+        GlobalOutSNR[pix] = pixval;
+      } else {
+        GlobalOutData[pix] = val;
+        GlobalOutArea[pix] = area;
+        GlobalMask[pix] = mask_no;
+        GlobalOutSNR[pix] = locsnr;
       }
       
-    }
-
+     } // end for jj
+    } // end for ii
 
     /*   
      * The original hacky way to use the Cdelt[]'s doesn't work. There are 
@@ -308,20 +307,9 @@ void abin_rec (
     */
 
     double regx[2], regy[2];
-    double logcorr[2];
-    double phycorr[2];
     
-    logcorr[0] = xs;
-    logcorr[1] = ys;
-    dmCoordCalc_d( PhysDes, logcorr, phycorr);
-    regx[0] = phycorr[0];
-    regy[0] = phycorr[1];
-    
-    logcorr[0] = xs+xl;
-    logcorr[1] = ys+yl;
-    dmCoordCalc_d( PhysDes, logcorr, phycorr);
-    regx[1] = phycorr[0];
-    regy[1] = phycorr[1];
+    convert_coords( GlobalXdesc,GlobalYdesc, xs, ys, regx+0, regy+0);
+    convert_coords( GlobalXdesc,GlobalYdesc, xs+xl, ys+yl, regx+1, regy+1);
     
     regAppendShape( maskRegion, "Rectangle", 1, 1, regx, regy,
             1, NULL, NULL, 0, 0 );
@@ -338,11 +326,25 @@ int load_error_image( char *errimg ) {
 
   if ( ( strlen(errimg) == 0 ) ||
        ( ds_strcmp_cis(errimg,"none" ) == 0 ) ) {
-    long jj;    
 
-    for (jj=0;jj<npix;jj++) { 
-      GlobalDErr[jj] =  sqrt(GlobalData[jj]);  // assumes Gaussian stats
-    }
+     double pixval;
+     long xx,yy,jj;    
+
+     for (yy=0; yy<GlobalYLen; yy++) {
+        for ( xx=0;xx<GlobalXLen;xx++) {
+
+            jj = xx + yy*GlobalXLen;
+           pixval = get_image_value( GlobalData, GlobalDataType, xx,yy,
+                    GlobalLAxes, GlobalPixMask);
+
+            if (ds_dNAN(pixval) ) {
+                GlobalDErr[jj] = 0;
+            } else {
+                GlobalDErr[jj] = sqrt(pixval);  // assumes Gaussian stats
+            }
+        
+       }  // end xx
+     } // end yy
 
   } else {
     long enAxes;
@@ -363,7 +365,10 @@ int load_error_image( char *errimg ) {
       err_msg("ERROR: Error image must be 2D image with non-zero axes\n");
       return(-1);
     }
-    get_data( errDs, npix, GlobalDErr );
+    // get_data( errDs, npix, GlobalDErr );
+
+    dmGetArray_f( errDs, GlobalDErr, npix );
+
     dmImageClose( erBlock );
   }
 
@@ -373,7 +378,7 @@ int load_error_image( char *errimg ) {
 
 
 /* Main routine; does all the work of a quad-tree adaptive binning routine*/
-int abin ()
+int abin (void)
 {
 
   char infile[DS_SZ_FNAME];
@@ -386,14 +391,9 @@ int abin ()
   short method;
   short clobber;
 
-  long nAxes;
-  long *lAxes;
   long npix;
 
   dmBlock *inBlock;
-  dmBlock *outBlock;
-  dmDescriptor *inDes;
-  dmDescriptor *outDes;
 
   /* Read in all the data */
   clgetstr( "infile", infile, DS_SZ_FNAME );
@@ -434,24 +434,35 @@ int abin ()
     err_msg("ERROR: Could not open infile='%s'\n", infile );
   }
 
-  inDes = dmImageGetDataDescriptor(inBlock);
-  nAxes = dmGetArrayDimensions( inDes, &lAxes );
-  if ( nAxes != 2 ) {
-    err_msg("ERROR: Image must have 2 axes\n" );
-    return(-1);
-  }
+
+
+  long *lAxes=NULL;
+
+  regRegion *dss=NULL;
+  long null;
+  short has_null;
+
+  GlobalDataType = get_image_data( inBlock, &GlobalData, &lAxes, &dss, &null, &has_null );
+  get_image_wcs( inBlock, &GlobalXdesc, &GlobalYdesc );
+  GlobalPixMask = get_image_mask( inBlock, GlobalData, GlobalDataType, lAxes, dss, null, has_null, 
+                         GlobalXdesc, GlobalYdesc );
+
+
+  
+
   npix = ( lAxes[0]*lAxes[1]);
   if (npix ==0 ) {
     err_msg("ERROR: Image is empty (one axis is 0 length)\n");
     return(-1);
   }
-  PhysDes = dmArrayGetAxisGroup( inDes, 1 );
-  GlobalXLen = lAxes[0];
-  GlobalYLen = lAxes[1];
+
+
+  GlobalLAxes[0] = GlobalXLen = lAxes[0];
+  GlobalLAxes[1] = GlobalYLen = lAxes[1];
 
 
   /* Allocate memory for the products */
-  GlobalData = (float*)calloc(npix,sizeof(float));
+  //GlobalData = (float*)calloc(npix,sizeof(float));
   GlobalDErr = (float*)calloc(npix,sizeof(float));
   GlobalOutData = (float*)calloc(npix,sizeof(float));
   GlobalOutArea = (float*)calloc(npix,sizeof(float));
@@ -459,8 +470,6 @@ int abin ()
   GlobalMask = (unsigned long*)calloc(npix,sizeof(unsigned long));
   maskRegion = regCreateEmptyRegion();
 
-
-  get_data( inDes, npix, GlobalData );
 
 
   if ( 0 != load_error_image( errimg ) ) {
@@ -473,9 +482,11 @@ int abin ()
 
 
   /* Write out files -- NB: mask file has different datatypes and different extensions */
+  dmBlock *outBlock;
+  dmDescriptor *outDes;
 
   if ( ds_clobber( outfile, clobber, NULL) == 0 ) {
-    outBlock = dmImageCreate(outfile, dmFLOAT, lAxes, nAxes );
+    outBlock = dmImageCreate(outfile, dmFLOAT, lAxes, 2 );
     if ( outBlock == NULL ) {
       err_msg("ERROR: Could not create output '%s'\n", outfile);
     }
@@ -492,7 +503,7 @@ int abin ()
 
   if ( (strlen(areafile)>0) && (ds_strcmp_cis(areafile,"none")!=0) ) {
     if ( ds_clobber( areafile, clobber, NULL) == 0 ) {
-      outBlock = dmImageCreate(areafile, dmFLOAT, lAxes, nAxes );
+      outBlock = dmImageCreate(areafile, dmFLOAT, lAxes, 2 );
       if ( outBlock == NULL ) {
     err_msg("ERROR: Could not create output '%s'\n", areafile);
       }
@@ -510,7 +521,7 @@ int abin ()
 
   if ( (strlen(snrfile)>0) && (ds_strcmp_cis(snrfile,"none")!=0) ) {
     if ( ds_clobber( snrfile, clobber, NULL) == 0 ) {
-      outBlock = dmImageCreate(snrfile, dmFLOAT, lAxes, nAxes );
+      outBlock = dmImageCreate(snrfile, dmFLOAT, lAxes, 2 );
       if ( outBlock == NULL ) {
     err_msg("ERROR: Could not create output '%s'\n", snrfile);
       }
@@ -529,7 +540,7 @@ int abin ()
 
   if ( (strlen(maskfile)>0) && (ds_strcmp_cis(maskfile,"none")!=0) ) {
     if ( ds_clobber( maskfile, clobber, NULL) == 0 ) {
-      outBlock = dmImageCreate(maskfile, dmULONG, lAxes, nAxes );
+      outBlock = dmImageCreate(maskfile, dmULONG, lAxes, 2 );
       if ( outBlock == NULL ) {
     err_msg("ERROR: Could not create output '%s'\n", maskfile);
       }
