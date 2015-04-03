@@ -27,14 +27,36 @@
 #include <math.h>
 #include <histlib.h>
 
+#include <cxcregion.h>
+#include <dsnan.h>
+
 #define FLOOR(x)  floor((x))
 #define CEIL(x)   ceil((x))
 
-#include <cxcregion.h>
-
 regRegion *maskRegion;
-double Crpix[2], Cdelt[2], Crval[2];
 dmDescriptor *PhysDes;
+
+
+/* Okay, global variables are a bad idea, excpet when doing recursion and
+ * we are passing the same data to each level ... more data gets pushed on the
+ * stack and causes crashes.  Also using global variables can make it
+ * run much faster so we'll bite the bullet here. */
+float *GlobalData;     /* i: data array */
+float *GlobalDErr;     /* i: error array */
+float *GlobalOutData;  /* o: output array */
+float *GlobalOutArea;  /* o: output area array */
+float *GlobalOutSNR;   /* o: output SNR */
+unsigned long *GlobalMask; /* o: output mask */
+long GlobalXLen;        /* i: length of x-axis (full img) */
+long GlobalYLen;        /* i: length of y-axis (full img) */
+long GlobalSNRThresh;   /* i: SNR threshold */
+enum { ZERO_ABOVE=0, ONE_ABOVE, TWO_ABOVE, THREE_ABOVE, ALL_ABOVE} GlobalSplitCriteria;
+
+
+/* TODO:  Replace i/o with dmimgio routines incl null/nan/indef checking 
+#include "dmimgio.h"
+
+*/
 
 
 
@@ -111,15 +133,12 @@ void get_data( dmDescriptor *inDes, long npix, float *data )
 
 
 double get_snr( 
-        float *data,   /* i: data array */
-        float *derr,   /* i: error array */
-        long   xlen,   /* i: length of x-axis (full img) */
-        long   ylen,   /* i: length of y-axis (full img) */
         long   xs,     /* i: start of x-axis (sub img) */
         long   ys,     /* i: start of y-axis (sub img) */
         long   xl,     /* i: length of x-axis (sub img) */
         long   yl,      /* i: length of y-axis (sub img) */
-        float  *oval
+        float  *oval,   /* o: sum of pixel values */
+        long   *area    /* o: number of pixels */
   )
 {
   
@@ -130,22 +149,26 @@ double get_snr(
 
   val = 0.0;
   noise = 0.0;
+  *area = 0;
 
   /* Determine SNR for current sub-image */
   for (ii=xs; ii<(xl+xs); ii++ ) {
-
+      if ( ii >= GlobalXLen ) {
+        continue; 
+      }
     for (jj=ys; jj<(yl+ys); jj++) {
       long pix;
-      if ( ii >= xlen ) {
-    continue; 
+      if ( jj >= GlobalYLen ) {
+        continue; 
       }
-      if ( jj >= ylen ) {
-    continue; 
-      }
-    pix = ii+(jj*xlen);
+      pix = ii+(jj*GlobalXLen);
 
-      val += data[pix];
-      noise += ( derr[pix] * derr[pix] );
+
+      /* TODO: check for valid pixels */
+
+      val += GlobalData[pix];
+      noise += ( GlobalDErr[pix] * GlobalDErr[pix] );
+      *area += 1;
     }
   }
   locsnr = val / sqrt(noise);
@@ -158,45 +181,75 @@ double get_snr(
 
 
 /* Recursive binning routine */
-
-void abin_rec ( float *data,   /* i: data array */
-        float *derr,   /* i: error array */
-        float *outd,   /* o: output array */
-        float *outa,   /* o: output area array */
-        unsigned long *mask, /* o: output mask */
-        float *osnr,   /* o: output SNR */
-        long   xlen,   /* i: length of x-axis (full img) */
-        long   ylen,   /* i: length of y-axis (full img) */
+void abin_rec ( 
         long   xs,     /* i: start of x-axis (sub img) */
         long   ys,     /* i: start of y-axis (sub img) */
         long   xl,     /* i: length of x-axis (sub img) */
-        long   yl,     /* i: length of y-axis (sub img) */
-        float  snr )   /* i: SNR threshold */
+        long   yl      /* i: length of y-axis (sub img) */
+       )   
 {
   
   static unsigned long mask_no; /* keep as static to avoid yet another
                    param to function; gets updated for
                    each recursive call */
 
-
-  /* Determine SNR for current sub-image */
-
-  float ll, lr, ul, ur, oval;
-  ll = get_snr( data, derr, xlen, ylen, 
-          xs, ys, FLOOR(xl/2.0), FLOOR(yl/2.0), &oval ); /* low-left */
-  lr = get_snr( data, derr, xlen, ylen, 
-          xs+FLOOR(xl/2.0), ys, CEIL(xl/2.0), FLOOR(yl/2.0), &oval ); /* low-rite*/
-  ul = get_snr( data, derr, xlen, ylen, 
-          xs, ys+FLOOR(yl/2.0), FLOOR(xl/2.0), CEIL(yl/2.0), &oval); /* up-left */
-  ur = get_snr( data, derr, xlen, ylen, 
-          xs+FLOOR(xl/2.0), ys+FLOOR(yl/2.0), CEIL(xl/2.0), CEIL(yl/2.0), &oval ); /* up-rite */
-
-  /* Algorithm is basically if the SNR of all subimages is > limit, then
-     split into 4 and repeat. */
+  
+  short check = 0;
 
 
-  short check = ( (ll > snr ) && (lr > snr) && (ul > snr) && (ur > snr ));         
+  if ( ZERO_ABOVE == GlobalSplitCriteria ) {
+      /* This is the original method -- if the current block is above SNR
+       * then split it. */
+      float at, oval;
+      long npix;  
+      at = get_snr( xs, ys, xl, yl , &oval, &npix );
+      check = ( at > GlobalSNRThresh );
 
+  } else {
+      /* Determine SNR for current sub-image */
+
+      /* This new method will only split the 2x2 if ALL 4 of the subimages
+       * exceed the SNR threshold 
+       */
+      
+      float ll, lr, ul, ur;
+      float oval_ll, oval_lr, oval_ul, oval_ur;
+      long npix;  
+      short ill, ilr, iul, iur;
+
+      ll = get_snr( xs, ys, FLOOR(xl/2.0), FLOOR(yl/2.0), &oval_ll, &npix ); /* low-left */
+      lr = get_snr( xs+FLOOR(xl/2.0), ys, CEIL(xl/2.0), FLOOR(yl/2.0), &oval_lr, &npix ); /* low-rite*/
+      ul = get_snr( xs, ys+FLOOR(yl/2.0), FLOOR(xl/2.0), CEIL(yl/2.0), &oval_ul, &npix); /* up-left */
+      ur = get_snr( xs+FLOOR(xl/2.0), ys+FLOOR(yl/2.0), CEIL(xl/2.0), CEIL(yl/2.0), &oval_ur, &npix ); /* up-rite */
+
+      ill = ( ll >= GlobalSNRThresh);
+      ilr = ( lr >= GlobalSNRThresh);
+      iul = ( ul >= GlobalSNRThresh);
+      iur = ( ur >= GlobalSNRThresh);
+
+      if ( ONE_ABOVE == GlobalSplitCriteria ) {
+          /* If any one of the sub images is above snr, then split */
+          check = ( ill + ilr + iul + iur  );            
+      } else if ( TWO_ABOVE == GlobalSplitCriteria ) {
+          /* If two, then they have to be side-by side, not diagonal */
+         check = ( (ill && ilr ) || 
+                   (ilr && iur ) ||
+                   (iur && iul ) ||
+                   (iul && ill )
+                  ); 
+      } else if ( THREE_ABOVE == GlobalSplitCriteria ) {
+          check = ( ill + ilr + iul + iur ) >= 3 ? 1 : 0;
+
+      } else if ( ALL_ABOVE == GlobalSplitCriteria ) {
+          check = ( ill + ilr + iul + iur ) == 4 ? 1 : 0;
+      } else {
+          err_msg("This should not have happened, something's amiss");
+          return;
+      }
+      
+  } // end else 
+
+  
   if (( check )&&(xl>1)&&(yl>1)) {
     /* Enter recursion */
 
@@ -204,30 +257,20 @@ void abin_rec ( float *data,   /* i: data array */
        not be square, or 2^n.  This will bias the left-upper image w/ 1 more 
        pixel per bin; but that's a limit of not using square images.
        The alternative is only use square smallest sub-image or pad image to 2**N.*/
-    
-    abin_rec( data, derr, outd, outa, mask, osnr, xlen, ylen, 
-          xs, ys, FLOOR(xl/2.0), FLOOR(yl/2.0), snr ); /* low-left */
-    abin_rec( data, derr, outd, outa, mask, osnr, xlen, ylen, 
-          xs+FLOOR(xl/2.0), ys, CEIL(xl/2.0), FLOOR(yl/2.0), snr ); /* low-rite*/
-    abin_rec( data, derr, outd, outa, mask, osnr, xlen, ylen, 
-          xs, ys+FLOOR(yl/2.0), FLOOR(xl/2.0), CEIL(yl/2.0), snr ); /* up-left */
-    abin_rec( data, derr, outd, outa, mask, osnr, xlen, ylen, 
-          xs+FLOOR(xl/2.0), ys+FLOOR(yl/2.0), CEIL(xl/2.0), CEIL(yl/2.0), 
-          snr ); /* up-rite */
-    
-    
-  } else { /* else do bin */
-    double regx,regy;
-    double regr[2];
-    double logcoor[2];
-    double physical[2];
+        abin_rec( xs, ys, FLOOR(xl/2.0), FLOOR(yl/2.0) ); /* low-left */
+        abin_rec( xs+FLOOR(xl/2.0), ys, CEIL(xl/2.0), FLOOR(yl/2.0) ); /* low-rite*/
+        abin_rec( xs, ys+FLOOR(yl/2.0), FLOOR(xl/2.0), CEIL(yl/2.0) ); /* up-left */
+        abin_rec( xs+FLOOR(xl/2.0), ys+FLOOR(yl/2.0), CEIL(xl/2.0), CEIL(yl/2.0)); /* up-rite */
+        return; 
+    }
+      
     float locsnr;
     long ii,jj;
     float val;
+    long area;
 
-    locsnr = get_snr( data, derr, xlen, ylen, xs, ys, xl, yl, &val );
-    
-    double area = ( xl * yl );
+    locsnr = get_snr( xs, ys, xl, yl, &val, &area );
+
     val /= area;
 
     mask_no += 1; /* statically increases per bin */
@@ -235,137 +278,70 @@ void abin_rec ( float *data,   /* i: data array */
 
     /* store output values */
     for (ii=xs; ii<xs+xl; ii++ ) {
+      if ( ii >= GlobalXLen ) { /* shouldn't be needed anymore */
+      continue; 
+      }
       for (jj=ys; jj<ys+yl; jj++) {
-    long pix;
-    
-    if ( ii >= xlen ) { /* shouldn't be needed anymore */
-      continue; 
-    }
-    if ( jj >= ylen ) { /* shouldn't be needed anymore */
-      continue; 
-    }
-    
-    pix = ii+(jj*xlen);
-    outd[pix] = val;
-    outa[pix] = area;
-    mask[pix] = mask_no;
-    osnr[pix] = locsnr;
+      long pix;
+
+      if ( jj >= GlobalYLen ) { /* shouldn't be needed anymore */
+        continue; 
+      }
+
+    pix = ii+(jj*GlobalXLen);
+    GlobalOutData[pix] = val;
+    GlobalOutArea[pix] = area;
+    GlobalMask[pix] = mask_no;
+    GlobalOutSNR[pix] = locsnr;
       }
       
     }
 
 
-    regx = xs+(xl/2.0) + 1; /* -> to phys */
-    regy = ys+(yl/2.0) + 1; /* -> to phys */
+    /*   
+     * The original hacky way to use the Cdelt[]'s doesn't work. There are 
+     * cases where the regions overlap which is bad.
+     * 
+     * So instead of using a box, we use a rectangle since the
+     * edge points are explicitly specified.
+     * 
+    */
 
-    logcoor[0]=regx;
-    logcoor[1]=regy;
-    dmCoordCalc_d( PhysDes, logcoor, physical );
-    regx=physical[0];
-    regy=physical[1];
+    double regx[2], regy[2];
+    double logcorr[2];
+    double phycorr[2];
+    
+    logcorr[0] = xs;
+    logcorr[1] = ys;
+    dmCoordCalc_d( PhysDes, logcorr, phycorr);
+    regx[0] = phycorr[0];
+    regy[0] = phycorr[1];
+    
+    logcorr[0] = xs+xl;
+    logcorr[1] = ys+yl;
+    dmCoordCalc_d( PhysDes, logcorr, phycorr);
+    regx[1] = phycorr[0];
+    regy[1] = phycorr[1];
+    
+    regAppendShape( maskRegion, "Rectangle", 1, 1, regx, regy,
+            1, NULL, NULL, 0, 0 );
 
-    regr[0] = xl * fabs( Cdelt[0]);       /* -> to phys */
-    regr[1] = yl * fabs( Cdelt[1]);       /* -> to phys */
-
-    regAppendShape( maskRegion, "Box", 1, 1, &regx, &regy,
-            1, regr, NULL, 0, 0 );
-
-
-  } /* end else */
-
-  return;
+    return;
 }
 
 
 
-
-
-/* Main routine; does all the work of a quad-tree adaptive binning routine*/
-int abin ()
-{
-
-  char infile[DS_SZ_FNAME];
-  char errimg[DS_SZ_FNAME];
-
-  char outfile[DS_SZ_FNAME];
-  char areafile[DS_SZ_FNAME];
-  char maskfile[DS_SZ_FNAME];
-  char snrfile[DS_SZ_FNAME];
-  float snr;
-  short clobber;
-
-  long nAxes;
-  long *lAxes;
-  float *data;
-  float *derr;
-  float *outd;
-  float *outa;
-  float *osnr;
-  unsigned long *mask;
-  long npix;
-
-  dmBlock *inBlock;
-  dmBlock *outBlock;
-  dmDescriptor *inDes;
-  dmDescriptor *outDes;
-
-  /* Read in all the data */
-  clgetstr( "infile", infile, DS_SZ_FNAME );
-  clgetstr( "outfile", outfile, DS_SZ_FNAME );
-  snr = clgetd( "snr" );
-  clgetstr( "inerrfile",   errimg, DS_SZ_FNAME );
-  clgetstr( "outmaskfile", maskfile, DS_SZ_FNAME );
-  clgetstr( "outsnrfile",  snrfile,  DS_SZ_FNAME );
-  clgetstr( "outareafile", areafile, DS_SZ_FNAME );
-  clobber = clgetb( "clobber" );
-
-
-  /* Go ahead and take care of the autonaming */
-  ds_autoname( infile, outfile, "abinimg", DS_SZ_FNAME );
-  ds_autoname( outfile, maskfile, "maskimg", DS_SZ_FNAME );
-  ds_autoname( outfile, snrfile, "snrimg", DS_SZ_FNAME );
-  ds_autoname( outfile, areafile, "areaimg", DS_SZ_FNAME );
-
-  /* Read the data */
-  inBlock = dmImageOpen( infile );
-  if ( !inBlock ) {
-    err_msg("ERROR: Could not open infile='%s'\n", infile );
-  }
-  inDes = dmImageGetDataDescriptor(inBlock);
-  nAxes = dmGetArrayDimensions( inDes, &lAxes );
-  if ( nAxes != 2 ) {
-    err_msg("ERROR: Image must have 2 axes\n" );
-    return(-1);
-  }
-  npix = ( lAxes[0]*lAxes[1]);
-  if (npix ==0 ) {
-    err_msg("ERROR: Image is empty (one axis is 0 length)\n");
-    return(-1);
-  }
-
-  PhysDes = dmArrayGetAxisGroup( inDes, 1 );
-  dmCoordGetTransform_d( PhysDes, Crpix, Crval, Cdelt, 2 );
-
-
-  /* Allocate memory for the products */
-  data = (float*)calloc(npix,sizeof(float));
-  derr = (float*)calloc(npix,sizeof(float));
-  outd = (float*)calloc(npix,sizeof(float));
-  outa = (float*)calloc(npix,sizeof(float));
-  osnr = (float*)calloc(npix,sizeof(float));
-  mask = (unsigned long*)calloc(npix,sizeof(unsigned long));
-
-
-  get_data( inDes, npix, data );
-  
-
+int load_error_image( char *errimg ) {
+    
   /* Read Error Image */
+  unsigned long npix = GlobalXLen*GlobalYLen;
+
   if ( ( strlen(errimg) == 0 ) ||
        ( ds_strcmp_cis(errimg,"none" ) == 0 ) ) {
-    long jj;
-    
+    long jj;    
+
     for (jj=0;jj<npix;jj++) { 
-      derr[jj] = sqrt( data[jj] );
+      GlobalDErr[jj] =  sqrt(GlobalData[jj]);  // assumes Gaussian stats
     }
 
   } else {
@@ -382,24 +358,121 @@ int abin ()
     errDs = dmImageGetDataDescriptor(erBlock );
     enAxes = dmGetArrayDimensions( errDs, &elAxes );
     if ( (enAxes != 2 ) || 
-     ( elAxes[0] != lAxes[0] ) ||
-     ( elAxes[1] != lAxes[1] )    ) {
+     ( elAxes[0] != GlobalXLen ) ||
+     ( elAxes[1] != GlobalYLen )    ) {
       err_msg("ERROR: Error image must be 2D image with non-zero axes\n");
       return(-1);
     }
-    get_data( errDs, npix, derr );
+    get_data( errDs, npix, GlobalDErr );
     dmImageClose( erBlock );
   }
 
+  return 0;
+}
 
-  /* Start Algorithm */
 
+
+/* Main routine; does all the work of a quad-tree adaptive binning routine*/
+int abin ()
+{
+
+  char infile[DS_SZ_FNAME];
+  char errimg[DS_SZ_FNAME];
+
+  char outfile[DS_SZ_FNAME];
+  char areafile[DS_SZ_FNAME];
+  char maskfile[DS_SZ_FNAME];
+  char snrfile[DS_SZ_FNAME];
+  short method;
+  short clobber;
+
+  long nAxes;
+  long *lAxes;
+  long npix;
+
+  dmBlock *inBlock;
+  dmBlock *outBlock;
+  dmDescriptor *inDes;
+  dmDescriptor *outDes;
+
+  /* Read in all the data */
+  clgetstr( "infile", infile, DS_SZ_FNAME );
+  clgetstr( "outfile", outfile, DS_SZ_FNAME );
+  GlobalSNRThresh = clgetd( "snr" );
+  method = clgeti("method");
+  clgetstr( "inerrfile",   errimg, DS_SZ_FNAME );
+  clgetstr( "outmaskfile", maskfile, DS_SZ_FNAME );
+  clgetstr( "outsnrfile",  snrfile,  DS_SZ_FNAME );
+  clgetstr( "outareafile", areafile, DS_SZ_FNAME );
+  clobber = clgetb( "clobber" );
+
+  switch (method) 
+  {
+    case 0: GlobalSplitCriteria = ZERO_ABOVE; break;
+    case 1: GlobalSplitCriteria = ONE_ABOVE; break;
+    case 2: GlobalSplitCriteria = TWO_ABOVE; break;
+    case 3: GlobalSplitCriteria = THREE_ABOVE; break;
+    case 4: GlobalSplitCriteria = ALL_ABOVE; break;
+    default:
+      err_msg("Invalid method parameter value");
+      break;
+  };
+
+
+  /* Go ahead and take care of the autonaming */
+  ds_autoname( infile, outfile, "abinimg", DS_SZ_FNAME );
+  ds_autoname( outfile, maskfile, "maskimg", DS_SZ_FNAME );
+  ds_autoname( outfile, snrfile, "snrimg", DS_SZ_FNAME );
+  ds_autoname( outfile, areafile, "areaimg", DS_SZ_FNAME );
+
+
+  /* Read the data */
+  /* TODO: Replace with dmimgio routines */
+
+  inBlock = dmImageOpen( infile );
+  if ( !inBlock ) {
+    err_msg("ERROR: Could not open infile='%s'\n", infile );
+  }
+
+  inDes = dmImageGetDataDescriptor(inBlock);
+  nAxes = dmGetArrayDimensions( inDes, &lAxes );
+  if ( nAxes != 2 ) {
+    err_msg("ERROR: Image must have 2 axes\n" );
+    return(-1);
+  }
+  npix = ( lAxes[0]*lAxes[1]);
+  if (npix ==0 ) {
+    err_msg("ERROR: Image is empty (one axis is 0 length)\n");
+    return(-1);
+  }
+  PhysDes = dmArrayGetAxisGroup( inDes, 1 );
+  GlobalXLen = lAxes[0];
+  GlobalYLen = lAxes[1];
+
+
+  /* Allocate memory for the products */
+  GlobalData = (float*)calloc(npix,sizeof(float));
+  GlobalDErr = (float*)calloc(npix,sizeof(float));
+  GlobalOutData = (float*)calloc(npix,sizeof(float));
+  GlobalOutArea = (float*)calloc(npix,sizeof(float));
+  GlobalOutSNR = (float*)calloc(npix,sizeof(float));
+  GlobalMask = (unsigned long*)calloc(npix,sizeof(unsigned long));
   maskRegion = regCreateEmptyRegion();
 
-  abin_rec( data, derr, outd, outa, mask, osnr, lAxes[0], lAxes[1], 
-    0, 0, lAxes[0], lAxes[1], snr );
 
-  /* Write out file */
+  get_data( inDes, npix, GlobalData );
+
+
+  if ( 0 != load_error_image( errimg ) ) {
+        return -1;
+  }
+  
+  /* Start Algorithm */
+
+  abin_rec( 0, 0, GlobalXLen, GlobalYLen);
+
+
+  /* Write out files -- NB: mask file has different datatypes and different extensions */
 
   if ( ds_clobber( outfile, clobber, NULL) == 0 ) {
     outBlock = dmImageCreate(outfile, dmFLOAT, lAxes, nAxes );
@@ -411,7 +484,7 @@ int abin ()
     ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
     put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
     dmBlockCopyWCS( inBlock, outBlock);
-    dmSetArray_f( outDes, outd, npix );
+    dmSetArray_f( outDes, GlobalOutData, npix );
     dmImageClose( outBlock );
   } else {
     return(-1);
@@ -428,7 +501,7 @@ int abin ()
       ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
       put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
       dmBlockCopyWCS( inBlock, outBlock);
-      dmSetArray_f( outDes, outa, npix );
+      dmSetArray_f( outDes, GlobalOutArea, npix );
       dmImageClose( outBlock );
     } else {
       return(-1);
@@ -446,7 +519,7 @@ int abin ()
       ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
       put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
       dmBlockCopyWCS( inBlock, outBlock);
-      dmSetArray_f( outDes, osnr, npix );
+      dmSetArray_f( outDes, GlobalOutSNR, npix );
       dmImageClose( outBlock );
     } else {
       return(-1);
@@ -465,7 +538,7 @@ int abin ()
       ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
       put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
       dmBlockCopyWCS( inBlock, outBlock);
-      dmSetArray_ul( outDes, mask, npix );
+      dmSetArray_ul( outDes, GlobalMask, npix );
 
       dmBlockClose( dmTableWriteRegion( dmBlockGetDataset( outBlock ),
               "REGION", NULL, maskRegion ));
@@ -479,12 +552,13 @@ int abin ()
   dmImageClose( inBlock ); /* Must keep open to do all the wcs/hdr
                   copies */
   
-  free(data);
-  free(derr);
-  free(outd);
-  free(outa);
-  free(osnr);
-  free(mask);
+  /* make valgrind happy */
+  free(GlobalData);
+  free(GlobalDErr);
+  free(GlobalOutData);
+  free(GlobalOutArea);
+  free(GlobalOutSNR);
+  free(GlobalMask);
 
 
   return(0);

@@ -16,13 +16,13 @@
 
 
 # !!1
-# dmnautilus.t
-# test script for dmnautilus
+# dmnautilus++.t
+# test script for dmnautilus++
 
 
 # !!2
 # syntax:
-# dmnautilus.t [<testid> ... ]
+# dmnautilus++.t [<testid> ... ]
  
 
 
@@ -213,16 +213,16 @@ do
   # run the tool
   case ${testid} in
     # !!6
-    test_simple ) test1_string="dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile='' outmaskfile='' outsnrfile='' outareafile='' clobber='yes' "
+    test_simple ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile='' outmaskfile='' outsnrfile='' outareafile='' clobber='yes' "
             ;;
 
-    test_variance ) test1_string="dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile=$INDIR/'variance.fits' outmaskfile=$OUTDIR/'.' outsnrfile=$OUTDIR/'.' outareafile=$OUTDIR/'.' verbose='0' clobber='yes'"
+    test_variance ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile=$INDIR/'variance.fits' outmaskfile=$OUTDIR/'.' outsnrfile=$OUTDIR/'.' outareafile=$OUTDIR/'.' verbose='0' clobber='yes'"
             ;;
 
   esac
 
   echo $test1_string | tee -a  $LOGFILE 
-  eval $test1_string  | tee -a  $LOGFILE  2>&1
+  eval $test1_string  2>&1 | tee -a  $LOGFILE  2>&1
 
 
 
