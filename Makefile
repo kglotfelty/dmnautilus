@@ -2,6 +2,8 @@
 
 #MK_TOP = ../../../..
 MK_TOP  = /export/ciao_from_source/ciao-4.7/src/
+KJG = /export/ciao
+
 
 include $(MK_TOP)/Makefile.master
 include $(MK_TOP)/include/Makefile.scidev
@@ -40,4 +42,10 @@ announce1:
 	@echo "   /----------------------------------------------------------\ "
 	@echo "   |                Building dmnautilus                       | "
 	@echo "   \----------------------------------------------------------/ "
+
+
+kjg: $(EXEC)
+	/bin/cp -f $(EXEC) $(KJG)/binexe/
+	/bin/cp -f $(KJG)/bin/dmlist $(KJG)/bin/$(EXEC)
+	/bin/cp -f $(PAR_FILES) $(KJG)/param/$(PAR_FILES)
 

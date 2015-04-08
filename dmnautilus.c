@@ -49,7 +49,7 @@ unsigned long *GlobalMask; /* o: output mask */
 long GlobalXLen;        /* i: length of x-axis (full img) */
 long GlobalYLen;        /* i: length of y-axis (full img) */
 long GlobalLAxes[2];    /* X,Y lens togeether */
-long GlobalSNRThresh;   /* i: SNR threshold */
+float GlobalSNRThresh;   /* i: SNR threshold */
 enum { ZERO_ABOVE=0, ONE_ABOVE, TWO_ABOVE, THREE_ABOVE, ALL_ABOVE} GlobalSplitCriteria;
 dmDataType GlobalDataType;
 dmDescriptor *GlobalXdesc=NULL;
@@ -65,7 +65,7 @@ int load_error_image( char *errimg );
 int abin(void);
 double get_snr(long xs, long ys, long xl ,long yl, float *oval, long *area);
 void abin_rec ( long xs, long ys, long xl, long yl);   
-int convert_coords( dmDescriptor *xdesc, dmDescriptor *ydesc, long xx, long yy, double *xat, double *yat);
+int convert_coords( dmDescriptor *xdesc, dmDescriptor *ydesc, double xx, double yy, double *xat, double *yat);
 
 /* ----------------------------- */
 
@@ -74,8 +74,8 @@ int convert_coords( dmDescriptor *xdesc, dmDescriptor *ydesc, long xx, long yy, 
 
 int convert_coords( dmDescriptor *xdesc,
                     dmDescriptor *ydesc,
-                    long xx,
-                    long yy,
+                    double xx,  /*Note: Using double rather than long here! */
+                    double yy, /* */
                     double *xat,
                     double *yat
                     )
@@ -311,9 +311,11 @@ void abin_rec (
     */
 
     double regx[2], regy[2];
+
+    /* Need the minux 0.5 since pixels are assumed to be cenetered on integer values */
+    convert_coords( GlobalXdesc,GlobalYdesc, xs-0.5, ys-0.5, regx+0, regy+0);
+    convert_coords( GlobalXdesc,GlobalYdesc, xs+xl-0.5, ys+yl-0.5, regx+1, regy+1);
     
-    convert_coords( GlobalXdesc,GlobalYdesc, xs, ys, regx+0, regy+0);
-    convert_coords( GlobalXdesc,GlobalYdesc, xs+xl, ys+yl, regx+1, regy+1);
     
     regAppendShape( maskRegion, "Rectangle", 1, 1, regx, regy,
             1, NULL, NULL, 0, 0 );
@@ -419,6 +421,7 @@ int abin (void)
     case 4: GlobalSplitCriteria = ALL_ABOVE; break;
     default:
       err_msg("Invalid method parameter value");
+      return(-1);
       break;
   };
 
@@ -441,7 +444,6 @@ int abin (void)
 
 
   long *lAxes=NULL;
-
   regRegion *dss=NULL;
   long null;
   short has_null;
