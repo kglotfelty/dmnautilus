@@ -16,13 +16,13 @@
 
 
 # !!1
-# dmnautilus++.t
-# test script for dmnautilus++
+# dmnautilus.t
+# test script for dmnautilus
 
 
 # !!2
 # syntax:
-# dmnautilus++.t [<testid> ... ]
+# dmnautilus.t [<testid> ... ]
  
 
 
@@ -101,7 +101,7 @@ toolname="dmnautilus"
 
 # set up list of tests
 # !!4
-alltests="test_simple test_variance"
+alltests="test_simple test_variance new_one new_two new_three new_four new_with_subspace new_rotated"
 
 # "short" test to run
 # !!5
@@ -213,16 +213,52 @@ do
   # run the tool
   case ${testid} in
     # !!6
-    test_simple ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile='' outmaskfile='' outsnrfile='' outareafile='' clobber='yes' "
+
+
+    ### FIXME!!!! drop replace 'ciaorun dmnautilus++ @@dmnautilus' with 'dmnautilus'
+    ### FIXME!!!! replace LOCAL_INPUT with $INDIR
+    ### FIXME!!!! replace LOCAL_SAVE with $SAVDIR
+    
+    test_simple ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile='' outmaskfile='' outsnrfile='' outareafile='' clobber='yes' method=0"
             ;;
 
-    test_variance ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile=$INDIR/'variance.fits' outmaskfile=$OUTDIR/'.' outsnrfile=$OUTDIR/'.' outareafile=$OUTDIR/'.' verbose='0' clobber='yes'"
+    test_variance ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile=$INDIR/'variance.fits' outmaskfile=$OUTDIR/'.' outsnrfile=$OUTDIR/'.' outareafile=$OUTDIR/'.' verbose='0' clobber='yes' method=0"
             ;;
+
+    new_one )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=1 outmask=${outfile}.map"
+                savfile=LOCAL_SAVE/${testid}.fits
+            ;;
+            
+    new_two )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=2 outmask=${outfile}.map"
+                savfile=LOCAL_SAVE/${testid}.fits
+
+            ;;
+            
+    new_three )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=3 outmask=${outfile}.map"
+                savfile=LOCAL_SAVE/${testid}.fits
+
+            ;;
+            
+    new_four )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
+                savfile=LOCAL_SAVE/${testid}.fits
+
+            ;;
+            
+    new_rotated)   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img+rot.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
+                savfile=LOCAL_SAVE/${testid}.fits
+            ;;
+
+    new_with_subspace )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img+rot+dss.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
+                savfile=LOCAL_SAVE/${testid}.fits
+
+            ;;
+
+
 
   esac
 
   echo $test1_string | tee -a  $LOGFILE 
-  eval $test1_string  2>&1 | tee -a  $LOGFILE  2>&1
+  eval $test1_string  | tee -a  $LOGFILE  2>&1
 
 
 

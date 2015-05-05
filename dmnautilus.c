@@ -439,6 +439,7 @@ int abin (void)
   inBlock = dmImageOpen( infile );
   if ( !inBlock ) {
     err_msg("ERROR: Could not open infile='%s'\n", infile );
+    return(-1);
   }
 
 
