@@ -5,33 +5,69 @@
    <SYNOPSIS>
 	Perform a quad-tree adaptive binning on 2D images
    </SYNOPSIS>
-   <SYNTAX>
-      <LINE>
-	dmnautilus infile outfile snr [inerrfile] [outmaskfile]
-	[outsnrfile] [outareafile] [verbose] [clobber]
-      </LINE>
-   </SYNTAX>
    <DESC>
       <PARA>
 	`dmnautilus' does a form of adaptive binning of a 2D image
-	known as a 'quad-tree' algorithm.  A detailed description of
+	known as a 'quad-tree' algorithm. 
+        </PARA>
+ 
+
+      <PARA>
+	The tool computes the
+	signal-to-noise ratio (SNR) for the entire image and
+    for the four sub-images taken by dividing the 
+    axis lengths in half.  Based on the 'method' parameter
+    the algorithm will then either accept the full image, or
+    iterate over each of the sub-images, repeating the divide-by-two 
+    algorithm until the threshold criteria is met or a single pixel
+    remains.
+        </PARA>
+
+
+    <PARA>
+    With method=1, if the SNR of any one of the sub-image greater than the 
+    input threshold, then the sub-images are used.
+    </PARA>
+    <PARA>
+    With method=2, if the SNR of two sub-image that share a common side (ie not 
+    diagonal) are greater than the input threshold then the sub-images are used.    
+    </PARA>
+    <PARA>
+    With method=3, if the SNR of any three of the sub-images is greater than
+    the input threshold, then the sub-images are used.
+    </PARA>
+    <PARA>
+    With method=4, the SNR of all of the sub-images must be above the threshold
+    for the sub-images to be used.  This is the most strict 
+    lower limit test; it may lead to some unexpected behavior with
+    rotated images -- especially around the edge of the image.
+    Users may see better results by rotating images to make the 
+    edges parallel to the X and Y axes.
+    </PARA>
+
+    <PARA>
+    With method=0, if the SNR of the entire image is greater than the
+	input threshold, the sub-images are used. This make the threshold
+    behave as an upper limit (image keeps dividing until SNR of the
+    sub-image falls  below the threshold).       A description of
 	the technique can be found in Samet, H. "The Quadtree and
 	Related Hierarchical Data Structures", 1984, ACM Computing 
 	Surveys, 16, 187.  
-      </PARA>
+    </PARA>
+    
+    <PARA>
+     For each sub-image, the process is repeated until the SNR 
+     criteria is met.    
+    </PARA>
 
-      <PARA>
-	The tool looks at the entire image and computes the
-	signal-to-noise ratio (SNR). If the SNR is greater than the
-	input threshold, the image is divided in half in both the
-	horizontal and vertical directions.  For each sub-image, the
-	process is repeated until the SNR drops below the
-	user-supplied value or a single pixel remains above the SNR
-	limit. 	The output pixels are then the sum of the pixels in
+    <PARA>
+    	The output pixels are then the sum of the pixels in
 	the sub-image divided by the area of the sub-image.  The tool
-	can also optionally output the area, snr, and a mask/group
+	can also optionally output the area, SNR, and a mask/group
 	number for each output pixel. 
 	</PARA>
+
+
 
       <PARA>
 	Pixels that fall outside of the data subspace, NaNs, and
@@ -39,11 +75,6 @@
 	sum, area and SNR. 
       </PARA>
 
-	<PARA>
-	  While square images will give the most natural-looking
-	  binning, rectangular images can be input and rectangular
-	  bins will be used.  
-	</PARA>
 
 	<PARA>
 	 If no error file is supplied (inerrfile parameter), then a
@@ -61,12 +92,29 @@
 	using the same grouping scheme.
 	</PARA>
 
+	<PARA>
+	  While square images will give the most natural-looking
+	  binning, rectangular images can be input and rectangular
+	  bins will be used.  
+	</PARA>
+    <PARA title="Image Edges">
+      There is some special treatment for the edge of images, or
+      more specifically, pixels outside the subspace.  If all 
+      the pixels in the sub-image are outside the subspace, then
+      that sub-image will be treated as having a SNR above threshold.
+      This allows for some better edge handing when working
+      with images that contain large borders or gaps of unexposed 
+      pixels.          
+    </PARA>
+
+
+
    </DESC>
    <QEXAMPLELIST>
       <QEXAMPLE>
          <SYNTAX>
             <LINE>
-	dmnautilus inimg.fits outimg.fits 9
+	dmnautilus inimg.fits outimg.fits 9 method=0
             </LINE>
          </SYNTAX>
          <DESC>
@@ -80,7 +128,7 @@
       <QEXAMPLE>
          <SYNTAX>
             <LINE>
-	dmnautilus inimg.fits outimg.fits 15 inerr=errs.fits
+	dmnautilus inimg.fits outimg.fits 15 inerr=errs.fits method=0
             </LINE>
          </SYNTAX>
          <DESC>
@@ -93,21 +141,23 @@
       <QEXAMPLE>
          <SYNTAX>
             <LINE>
-	dmnautilus inimg.fits outimg.fits 9 outmaskfile=mask.fits
+	dmnautilus inimg.fits outimg.fits 9 outmaskfile=mask.fits method=4
             </LINE>
          </SYNTAX>
          <DESC>
             <PARA>
 	Similar to Example 1 but outputs the mask information.  Each
 	pixel in the mask.fits file indicates which group the pixel
-	was assigned to.
+	was assigned to.  With method=4 and no input error 
+    image, the output will contain bins with a minimum SNR=9 (ie 
+    81 counts).
             </PARA>
          </DESC>
       </QEXAMPLE>
       <QEXAMPLE>
          <SYNTAX>
             <LINE>
-	dmnautilus inimg.fits . 9 outmask=. outsnr=. outarea=.
+	dmnautilus inimg.fits . 9 outmask=. outsnr=. outarea=. method=4
             </LINE>
          </SYNTAX>
          <DESC>
@@ -155,6 +205,35 @@
             </PARA>
          </DESC>
       </PARAM>
+      <PARAM type="integer" name="method" def="0" min="0" max="4">
+        <SYNOPSIS>
+        SNR threshold method
+        </SYNOPSIS>
+        <DESC>        
+          <PARA>
+            The method parameter describes the number of sub-images
+            that must be above the SNR threshold for the sub-images
+            to be further divided.   A value of 1 means that only 1 of the 
+            sub-images must be above threshold for them all to be
+            divided.  A value of 2 means that two sub-images that
+            specifically share a common side (ie not diagonal) 
+            are above threshold then all 4 sub-images are divided. 
+            3 requires any three sub-image be above threshold, and 4
+            requires all 4 sub-image be above threshold for them
+            to be further subdivided.  
+                            
+          </PARA>        
+          <PARA>
+            The value of 0 is different in that the sub-images are 
+            always divided if the parent image is above the SNR threshold.
+            So while the other methods act as lower limits, a
+            value of 0 acts as an upper limit.          
+          </PARA>
+
+        </DESC>
+      </PARAM>
+
+
       <PARAM filetype="input" name="inerrfile" reqd="no" type="file">
          <SYNOPSIS>
 	   Input error image
@@ -227,6 +306,22 @@
       </PARAM>
    </PARAMLIST>
 
+  <ADESC title="Changes in CIAO X.Y.Z">
+    <PARA>
+    The 'method' parameter is new.  The original behavior of the 
+    tool, which uses the SNR as an upper limit (keeps dividing the
+    image until the SNR drops below the limit) is achieved using
+    method=0.
+    </PARA>
+    <PARA>
+    Setting method=1, 2, 3, or 4 allows using the SNR as a lower limit
+    with increasing strictness on the number of sub-images that must
+    exceed the SNR for them to be further divided.    
+    </PARA>
+
+  </ADESC>
+
+
 
    <BUGS><PARA>
 	See the
@@ -234,6 +329,6 @@
 	for this tool</HREF>
         on the CIAO website for an up-to-date listing of known bugs.
       </PARA></BUGS>
-   <LASTMODIFIED>December 2013</LASTMODIFIED>
+   <LASTMODIFIED>May 2015</LASTMODIFIED>
 </ENTRY>
 </cxchelptopics>
