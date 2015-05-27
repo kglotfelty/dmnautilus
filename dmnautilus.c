@@ -57,9 +57,15 @@ dmDescriptor *GlobalYdesc=NULL;
 short *GlobalPixMask=NULL;
 
 
+/* Using the dmtools/dmimgio routines removes lots of duplicate code that was
+ * originally here.  Also allow us to keep track of NULL/NaN value pixels
+ * more easily
+ */
 #include "dmimgio.h"
 
-/* ----------------------------- */
+
+
+/* ------Prototypes ----------------------- */
 
 int load_error_image( char *errimg );
 int abin(void);
@@ -67,9 +73,8 @@ double get_snr(long xs, long ys, long xl ,long yl, float *oval, long *area);
 void abin_rec ( long xs, long ys, long xl, long yl);   
 int convert_coords( dmDescriptor *xdesc, dmDescriptor *ydesc, double xx, double yy, double *xat, double *yat);
 
+
 /* ----------------------------- */
-
-
 
 
 int convert_coords( dmDescriptor *xdesc,
@@ -99,7 +104,8 @@ int convert_coords( dmDescriptor *xdesc,
 }
 
 
-
+/* Compute the signal to noise ratio in the sub-image.  Also returns the
+ * sum of the pixel values and the area (number of non-null pixels) */
 double get_snr( 
         long   xs,     /* i: start of x-axis (sub img) */
         long   ys,     /* i: start of y-axis (sub img) */
@@ -133,8 +139,6 @@ double get_snr(
       pix = ii+(jj*GlobalXLen);
 
 
-      /* TODO: check for valid pixels */
-
       pixval = get_image_value( GlobalData, GlobalDataType, ii, jj,
           GlobalLAxes, GlobalPixMask);
       if ( ds_dNAN(pixval) ) {          
@@ -167,11 +171,10 @@ void abin_rec (
   
   static unsigned long mask_no; /* keep as static to avoid yet another
                    param to function; gets updated for
-                   each recursive call */
+                   each recursive call.  Could make this a global value too.*/
 
   
   short check = 0;
-
 
   if ( ZERO_ABOVE == GlobalSplitCriteria ) {
       /* This is the original method -- if the current block is above SNR
@@ -202,15 +205,13 @@ void abin_rec (
 
       /*
        * It is OK to split if sub-cell has no valid pixel; but not all of them.
-       * 
        */       
-
       ill = ( ll >= GlobalSNRThresh) || ( npix_ll == 0);  
       ilr = ( lr >= GlobalSNRThresh) || ( npix_lr == 0);
       iul = ( ul >= GlobalSNRThresh) || ( npix_ul == 0);
       iur = ( ur >= GlobalSNRThresh) || ( npix_ur == 0);
 
-        /* If there are no pixels, no reason to recurse */
+      /* If there are no pixels, no reason to recurse */
       if ((npix_ll+npix_lr+npix_ul+npix_ur) ==0 ) {
           check =0; 
 
@@ -237,8 +238,6 @@ void abin_rec (
           return;
       }
 
-        
-      
   } // end else 
 
   
@@ -267,7 +266,6 @@ void abin_rec (
     val /= area;
 
     mask_no += 1; /* statically increases per bin */
-
 
     /* store output values */
     for (ii=xs; ii<xs+xl; ii++ ) {
@@ -312,7 +310,7 @@ void abin_rec (
 
     double regx[2], regy[2];
 
-    /* Need the minux 0.5 since pixels are assumed to be cenetered on integer values */
+    /* Need the minus 0.5 since pixels are assumed to be cenetered on integer values */
     convert_coords( GlobalXdesc,GlobalYdesc, xs-0.5, ys-0.5, regx+0, regy+0);
     convert_coords( GlobalXdesc,GlobalYdesc, xs+xl-0.5, ys+yl-0.5, regx+1, regy+1);
     
@@ -455,8 +453,6 @@ int abin (void)
                          GlobalXdesc, GlobalYdesc );
 
 
-  
-
   npix = ( lAxes[0]*lAxes[1]);
   if (npix ==0 ) {
     err_msg("ERROR: Image is empty (one axis is 0 length)\n");
@@ -476,7 +472,6 @@ int abin (void)
   GlobalOutSNR = (float*)calloc(npix,sizeof(float));
   GlobalMask = (unsigned long*)calloc(npix,sizeof(unsigned long));
   maskRegion = regCreateEmptyRegion();
-
 
 
   if ( 0 != load_error_image( errimg ) ) {
@@ -567,8 +562,8 @@ int abin (void)
     }
   }
   
-  dmImageClose( inBlock ); /* Must keep open to do all the wcs/hdr
-                  copies */
+  /* Must keep open until now to do all the wcs/hdr copies */
+  dmImageClose( inBlock ); 
   
   /* make valgrind happy */
   free(GlobalData);
