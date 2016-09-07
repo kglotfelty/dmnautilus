@@ -1,14 +1,14 @@
 ##############################################################################
 
 #MK_TOP = ../../../..
-MK_TOP  = /export/ciao_from_source/ciao-4.7/src/
+MK_TOP  = /export/ciao_from_source/ciao-4.8/src/
 KJG = /export/ciao
 
 
 include $(MK_TOP)/Makefile.master
 include $(MK_TOP)/include/Makefile.scidev
 
-EXEC              = dmnautilus++
+EXEC              = dmnautilus
 LIB_FILES = 
 PAR_FILES         = dmnautilus.par
 INC_FILES         = 
