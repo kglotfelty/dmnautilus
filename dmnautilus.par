@@ -1,7 +1,7 @@
 infile,f,a,"",,,"Input image"
 outfile,f,a,"",,,"Output file name"
 snr,r,a,0,0,,"SNR limit"
-method,i,h,4,0,4,"Number of subimages required to be above SNR threshold"
+method,i,h,0,0,4,"Number of subimages required to be above SNR threshold"
 inerrfile,f,h,"",,,"Input error on image"
 outmaskfile,f,h,"",,,"Output mask image"
 outsnrfile,f,h,"",,,"Output SNR image"
