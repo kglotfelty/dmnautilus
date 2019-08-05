@@ -216,40 +216,39 @@ do
 
 
     ### FIXME!!!! drop replace 'ciaorun dmnautilus++ @@dmnautilus' with 'dmnautilus'
-    ### FIXME!!!! replace LOCAL_INPUT with $INDIR
+    ### FIXME!!!! replace $INDIR with $INDIR
     ### FIXME!!!! replace LOCAL_SAVE with $SAVDIR
     
-    test_simple ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile='' outmaskfile='' outsnrfile='' outareafile='' clobber='yes' method=0"
+    test_simple ) test1_string="dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile='' outmaskfile='' outsnrfile='' outareafile='' clobber='yes' method=0"
             ;;
 
-    test_variance ) test1_string="ciaorun dmnautilus++ @@dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile=$INDIR/'variance.fits' outmaskfile=$OUTDIR/'.' outsnrfile=$OUTDIR/'.' outareafile=$OUTDIR/'.' verbose='0' clobber='yes' method=0"
+    test_variance ) test1_string="dmnautilus infile=$INDIR/'acisf00650N002_cntr_img2.fits' outfile=$outfile snr='15' inerrfile=$INDIR/'variance.fits' outmaskfile=$OUTDIR/'.' outsnrfile=$OUTDIR/'.' outareafile=$OUTDIR/'.' verbose='0' clobber='yes' method=0"
             ;;
 
-    new_one )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=1 outmask=${outfile}.map"
-                savfile=LOCAL_SAVE/${testid}.fits
+    new_one )   test1_string="dmnautilus infile=$INDIR/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=1 outmask=${outfile}.map"
+                
             ;;
             
-    new_two )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=2 outmask=${outfile}.map"
-                savfile=LOCAL_SAVE/${testid}.fits
-
-            ;;
-            
-    new_three )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=3 outmask=${outfile}.map"
-                savfile=LOCAL_SAVE/${testid}.fits
+    new_two )   test1_string="dmnautilus infile=$INDIR/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=2 outmask=${outfile}.map"
 
             ;;
             
-    new_four )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
-                savfile=LOCAL_SAVE/${testid}.fits
+    new_three )   test1_string="dmnautilus infile=$INDIR/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=3 outmask=${outfile}.map"
+                
 
             ;;
             
-    new_rotated)   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img+rot.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
-                savfile=LOCAL_SAVE/${testid}.fits
+    new_four )   test1_string="dmnautilus infile=$INDIR/img.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
+                
+
+            ;;
+            
+    new_rotated)   test1_string="dmnautilus infile=$INDIR/img+rot.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
+                
             ;;
 
-    new_with_subspace )   test1_string="ciaorun dmnautilus++ @@dmnautilus infile=LOCAL_INPUT/img+rot+dss.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
-                savfile=LOCAL_SAVE/${testid}.fits
+    new_with_subspace )   test1_string="dmnautilus infile=$INDIR/img+rot+dss.fits outfile=$outfile snr=15.8 mode=h clob+ method=4 outmask=${outfile}.map"
+                
 
             ;;
 
