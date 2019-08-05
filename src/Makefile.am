@@ -1,4 +1,4 @@
-tool = mytool
+tool = dmnautilus
 
 binexedir = $(prefix)/binexe
 paramdir = $(prefix)/param
@@ -6,14 +6,14 @@ ahelpdir = $(prefix)/share/doc/xml
 
 binexe_PROGRAMS = $(tool)
 
-mytool_SOURCES = mytool.c
-mytool_CPPFLAGS = $(CIAO_CFLAGS)
-mytool_LDADD = $(CIAO_LIBS) 
-mytool_LINK = $(CXX) -o $@ -Wl,-rpath,$(prefix)/lib -Wl,-rpath,$(prefix)/ots/lib 
+dmnautilus_SOURCES = dmnautilus.c t_dmnautilus.c
+dmnautilus_CPPFLAGS = $(CIAO_CFLAGS)
+dmnautilus_LDADD = $(CIAO_LIBS) -ldmimgio
+dmnautilus_LINK = $(CXX) -o $@ -Wl,-rpath,$(prefix)/lib -Wl,-rpath,$(prefix)/ots/lib 
 
 # problems with libstdc++ and cxcparam on Linux :(
 if LINUX
-mytool_LDADD += -L$(prefix)/ots/lib -lstdc++
+dmnautilus_LDADD += -L$(prefix)/ots/lib -lstdc++
 endif
 
 
