@@ -504,7 +504,7 @@ install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am:
+install-exec-am: install-exec-local
 
 install-html: install-html-am
 
@@ -555,19 +555,25 @@ uninstall-am: uninstall-binexePROGRAMS uninstall-dist_ahelpDATA \
 	install-binexePROGRAMS install-data install-data-am \
 	install-data-hook install-dist_ahelpDATA \
 	install-dist_paramDATA install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-binexePROGRAMS uninstall-dist_ahelpDATA \
-	uninstall-dist_paramDATA
+	install-exec-am install-exec-local install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-binexePROGRAMS \
+	uninstall-dist_ahelpDATA uninstall-dist_paramDATA
 
 
 install-data-hook:
 	chmod a-w $(paramdir)/$(dist_param_DATA)
 	chmod a-w $(ahelpdir)/$(dist_ahelp_DATA)
+
+install-exec-local:
+	$(RM) $(binexedir)/$(tool)
+	$(RM) $(paramdir)/$(dist_param_DATA)
+	$(RM) $(prefix)/bin/$(tool)
+	$(RM) $(ahelpdir)/$(dist_ahelp_DATA)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
