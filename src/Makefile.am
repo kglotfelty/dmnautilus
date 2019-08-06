@@ -24,9 +24,3 @@ install-data-hook:
 	chmod a-w $(paramdir)/$(dist_param_DATA)
 	chmod a-w $(ahelpdir)/$(dist_ahelp_DATA)
 
-install-exec-local:
-	$(RM) $(binexedir)/$(tool)
-	$(RM) $(paramdir)/$(dist_param_DATA)
-	$(RM) $(prefix)/bin/$(tool)
-	$(RM) $(ahelpdir)/$(dist_ahelp_DATA)
-
