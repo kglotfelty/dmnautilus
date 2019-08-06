@@ -446,11 +446,14 @@ int abin (void)
   regRegion *dss=NULL;
   long null;
   short has_null;
+  char unit[DS_SZ_KEYWORD];
+  memset( &unit[0], 0, DS_SZ_KEYWORD) ;
 
   GlobalDataType = get_image_data( inBlock, &GlobalData, &lAxes, &dss, &null, &has_null );
   get_image_wcs( inBlock, &GlobalXdesc, &GlobalYdesc );
   GlobalPixMask = get_image_mask( inBlock, GlobalData, GlobalDataType, lAxes, dss, null, has_null, 
                          GlobalXdesc, GlobalYdesc );
+  dmGetUnit( dmImageGetDataDescriptor(inBlock),unit, DS_SZ_KEYWORD );
 
 
   npix = ( lAxes[0]*lAxes[1]);
@@ -487,6 +490,8 @@ int abin (void)
   dmBlock *outBlock;
   dmDescriptor *outDes;
 
+
+
   if ( ds_clobber( outfile, clobber, NULL) == 0 ) {
     outBlock = dmImageCreate(outfile, dmFLOAT, lAxes, 2 );
     if ( outBlock == NULL ) {
@@ -496,6 +501,7 @@ int abin (void)
     dmBlockCopy( inBlock, outBlock, "HEADER"); 
     ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
     put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
+    dmSetUnit( outDes, unit );
     dmBlockCopyWCS( inBlock, outBlock);
     dmSetArray_f( outDes, GlobalOutData, npix );
     dmImageClose( outBlock );
@@ -513,6 +519,7 @@ int abin (void)
       dmBlockCopy( inBlock, outBlock, "HEADER");
       ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
       put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
+      dmSetUnit( outDes, "pixels" );
       dmBlockCopyWCS( inBlock, outBlock);
       dmSetArray_f( outDes, GlobalOutArea, npix );
       dmImageClose( outBlock );
