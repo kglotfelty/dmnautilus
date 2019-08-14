@@ -4725,6 +4725,7 @@ if test -n "$CIAO_CFLAGS"; then
   stk
   err
   ds
+  dmimgio
 \""; } >&5
   ($PKG_CONFIG --exists --print-errors "
   ascdm
@@ -4732,6 +4733,7 @@ if test -n "$CIAO_CFLAGS"; then
   stk
   err
   ds
+  dmimgio
 ") 2>&5
   ac_status=$?
   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
@@ -4742,6 +4744,7 @@ if test -n "$CIAO_CFLAGS"; then
   stk
   err
   ds
+  dmimgio
 " 2>/dev/null`
 		      test "x$?" != "x0" && pkg_failed=yes
 else
@@ -4760,6 +4763,7 @@ if test -n "$CIAO_LIBS"; then
   stk
   err
   ds
+  dmimgio
 \""; } >&5
   ($PKG_CONFIG --exists --print-errors "
   ascdm
@@ -4767,6 +4771,7 @@ if test -n "$CIAO_LIBS"; then
   stk
   err
   ds
+  dmimgio
 ") 2>&5
   ac_status=$?
   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
@@ -4777,6 +4782,7 @@ if test -n "$CIAO_LIBS"; then
   stk
   err
   ds
+  dmimgio
 " 2>/dev/null`
 		      test "x$?" != "x0" && pkg_failed=yes
 else
@@ -4804,6 +4810,7 @@ fi
   stk
   err
   ds
+  dmimgio
 " 2>&1`
         else
 	        CIAO_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "
@@ -4812,6 +4819,7 @@ fi
   stk
   err
   ds
+  dmimgio
 " 2>&1`
         fi
 	# Put the nasty error message in config.log where it belongs
@@ -4823,6 +4831,7 @@ fi
   stk
   err
   ds
+  dmimgio
 ) were not met:
 
 $CIAO_PKG_ERRORS

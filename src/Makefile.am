@@ -8,7 +8,7 @@ binexe_PROGRAMS = $(tool)
 
 dmnautilus_SOURCES = dmnautilus.c t_dmnautilus.c
 dmnautilus_CPPFLAGS = $(CIAO_CFLAGS)
-dmnautilus_LDADD = $(CIAO_LIBS) -ldmimgio
+dmnautilus_LDADD = $(CIAO_LIBS)
 dmnautilus_LINK = $(CXX) -o $@ -Wl,-rpath,$(prefix)/lib -Wl,-rpath,$(prefix)/ots/lib 
 
 # problems with libstdc++ and cxcparam on Linux :(
