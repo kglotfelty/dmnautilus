@@ -64,7 +64,7 @@ H***************************************************************** */
 #include "dslib.h"
 
 
-void main(int argc, char** argv)
+int main(int argc, char** argv)
 {
     int fail_status = 0; 
 
