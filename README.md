@@ -160,6 +160,7 @@ first.
 ### 01 July 2014
 
 _From_: D. Burke
+
 _To_: dsdevel
 
  Two local users asked if there was a way to make `dmnautilus` only do
@@ -178,6 +179,7 @@ with using some code ... probably http://www.mpe.mpg.de/~jsanders/adbin/
 
 ### 01 July 2014
 _From_: W. McLaughlin
+
 _To_: dsdevel
 
 Added this RFE to the bug tracker as:
@@ -187,6 +189,7 @@ Added this RFE to the bug tracker as:
 
 ### 05 June 2015
 _From_: K. Glotfelty
+
 _To_: W. McLaughlin
 
 
