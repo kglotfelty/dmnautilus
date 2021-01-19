@@ -1,6 +1,13 @@
 
 # `dmnautilus`
 
+## Overview
+
+The quad-tree algorithm used by `dmfilth` is available in the
+[help file](https://cxc.cfa.harvard.edu/ciao/ahelp/dmnautilus.html).
+There is an updated help file, `dmnautilus.xml` in the `src` folder.
+
+
 ## Example
 
 Consider an image of Abell 1775, OBS_ID=13510.  
@@ -11,7 +18,7 @@ This the 0.5-7.0 keV counts image, imaged with ACIS-7, where the
 point-like sources have been removed.  The full image will be cropped
 to exclude the corners where there are no counts/exposure.
 
-### The original algorith, `method=0`
+### The original algorithm, `method=0`
 
 
 ```bash
@@ -34,6 +41,10 @@ keeps being divided until the SNR in each of the sub-image is less than 100
 counts.  _(Right)_ the map (`outmask`) file showing which pixels are grouped 
 together.
 
+### The updated algorithm
+
+The results for the updated algorithm are shown below for the
+same image and SNR=10 threshold
 
 
 | `method` | Output                                            |
@@ -45,10 +56,19 @@ together.
 |   4      |![dmnautilus output with m=0](doc/img_m4.abin.png) |
 
 
+If you look carefully at the results for different `method` values, you
+will see that the rectangles describing the grid become larger as the 
+method value increases.  With `method=4`, all the rectangles now must 
+meet the SNR=10 threshold (ie have 100 counts).
 
 
 
 ## Changes
+
+This code was originally forked from CIAO 4.6; however, there have been
+minimal updates since then.  The only upstream update was to add units 
+to the output which have been included.
+
 
 ### I/O
 
@@ -136,7 +156,11 @@ first.
 
 ## Communication log
 
-### F: D. Burke  T: dsdevel  D: 01 July 2014
+
+### 01 July 2014
+
+_From_: D. Burke
+_To_: dsdevel
 
  Two local users asked if there was a way to make `dmnautilus` only do
 the split if the four quadrants each have a SNR greater than the snr
@@ -152,14 +176,18 @@ The users actually started looking into modifying `dmnautilus` itself to
 do this - after we told them how to do this - but then ended up going
 with using some code ... probably http://www.mpe.mpg.de/~jsanders/adbin/
 
-### F: W. McLaughlin T: dsdevel D: 01 July 2014
+### 01 July 2014
+_From_: W. McLaughlin
+_To_: dsdevel
 
 Added this RFE to the bug tracker as:
 
-    #13929: RFE: dmnautilus to have a mode where the split is only done if
-    all the quadrants have snr>min val 
+> #13929: RFE: dmnautilus to have a mode where the split is only done if
+>     all the quadrants have snr>min val 
 
-### F: K. Glotfelty T: W. McLaughlin D: 05 June 2015
+### 05 June 2015
+_From_: K. Glotfelty
+_To_: W. McLaughlin
 
 
 I have been prototyping D's `dmnautilus` RFE from last year #13929.
