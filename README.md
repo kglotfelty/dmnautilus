@@ -1,6 +1,49 @@
 
 # `dmnautilus`
 
+## Example
+
+Consider an image of Abell 1775, OBS_ID=13510.  
+
+![Broad band X-ray image of Abell1775](doc/abell1775_broad_thresh.img.fill.png)
+
+This the 0.5-7.0 keV counts image, imaged with ACIS-7, where the 
+point-like sources have been removed.  The full image will be cropped
+to exclude the corners where there are no counts/exposure.
+
+### The original algorith, `method=0`
+
+
+```bash
+dmnautilus \
+  infile=img.fits \
+  outfile=dmnautilus/img.abin \
+  snr=10 \
+  method=0 \
+  outmask=dmnautilus/img.map \
+  outsnr=dmnautilus/img.snr \
+  outarea=dmnautilus/img.area \
+  mode=h clob+
+```
+
+![dmnautilus output with m=0](doc/img.abin.png)
+
+The output from `dmnautilus` with `method=0`.  _(Left)_ the counts image
+adaptively binned with a SNR threshold of 10. This means that the image 
+keeps being divided until the SNR in each of the sub-image is less than 100 
+counts.  _(Right)_ the map (`outmask`) file showing which pixels are grouped 
+together.
+
+
+
+| `method` | Output                                            |
+|----------|---------------------------------------------------|
+|   0      |![dmnautilus output with m=0](doc/img.abin.png)    |
+|   1      |![dmnautilus output with m=0](doc/img.abin_m1.png) |
+|   2      |![dmnautilus output with m=0](doc/img.abin_m2.png) |
+|   3      |![dmnautilus output with m=0](doc/img.abin_m3.png) |
+|   4      |![dmnautilus output with m=0](doc/img.abin_m4.png) |
+
 
 
 
