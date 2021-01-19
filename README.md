@@ -39,10 +39,10 @@ together.
 | `method` | Output                                            |
 |----------|---------------------------------------------------|
 |   0      |![dmnautilus output with m=0](doc/img.abin.png)    |
-|   1      |![dmnautilus output with m=0](doc/img.abin_m1.png) |
-|   2      |![dmnautilus output with m=0](doc/img.abin_m2.png) |
-|   3      |![dmnautilus output with m=0](doc/img.abin_m3.png) |
-|   4      |![dmnautilus output with m=0](doc/img.abin_m4.png) |
+|   1      |![dmnautilus output with m=0](doc/img_m1.abin.png) |
+|   2      |![dmnautilus output with m=0](doc/img_m2.abin.png) |
+|   3      |![dmnautilus output with m=0](doc/img_m3.abin.png) |
+|   4      |![dmnautilus output with m=0](doc/img_m4.abin.png) |
 
 
 
