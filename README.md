@@ -83,7 +83,7 @@ Introduction of the `method` parameter.  With `method=0` the original
 algorithm is used (see `GlobalSplitCriteria`), that is the current level 
 is split into 2x2 if its SNR is > threshold
 
-The new algorithm is triggered when `method=1|2|3|4`.  The value indicated
+The new algorithm is triggered when `method=1|2|3|4`.  The value indicates
 the number of the sub 2x2 arrays that must have SNR> threshold to trigger
 the split. With `method=2`, the two must be side-by-side, not diagonal.
 With `method=4`, all the sub-images are required to be above the SNR
@@ -159,7 +159,7 @@ first.
 
 ### 01 July 2014
 
-_From_: D. Burke
+_From_: D.B.
 
 _To_: dsdevel
 
@@ -178,7 +178,7 @@ do this - after we told them how to do this - but then ended up going
 with using some code ... probably http://www.mpe.mpg.de/~jsanders/adbin/
 
 ### 01 July 2014
-_From_: W. McLaughlin
+_From_: W.M.
 
 _To_: dsdevel
 
@@ -188,9 +188,9 @@ Added this RFE to the bug tracker as:
 >     all the quadrants have snr>min val 
 
 ### 05 June 2015
-_From_: K. Glotfelty
+_From_: K.G.
 
-_To_: W. McLaughlin
+_To_: W. McLaughlin.
 
 
 I have been prototyping D's `dmnautilus` RFE from last year #13929.
