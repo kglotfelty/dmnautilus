@@ -29,6 +29,7 @@
 
 #include <cxcregion.h>
 #include <dsnan.h>
+#include "dmimgio.h"
 
 #define FLOOR(x)  floor((x))
 #define CEIL(x)   ceil((x))
@@ -40,28 +41,29 @@ regRegion *maskRegion;
  * we are passing the same data to each level ... more data gets pushed on the
  * stack and causes crashes.  Also using global variables can make it
  * run much faster so we'll bite the bullet here. */
-void  *GlobalData;     /* i: data array */
 float *GlobalDErr;     /* i: error array */
 float *GlobalOutData;  /* o: output array */
 float *GlobalOutArea;  /* o: output area array */
 float *GlobalOutSNR;   /* o: output SNR */
 unsigned long *GlobalMask; /* o: output mask */
-long GlobalXLen;        /* i: length of x-axis (full img) */
-long GlobalYLen;        /* i: length of y-axis (full img) */
-long GlobalLAxes[2];    /* X,Y lens togeether */
 float GlobalSNRThresh;   /* i: SNR threshold */
 enum { ZERO_ABOVE=0, ONE_ABOVE, TWO_ABOVE, THREE_ABOVE, ALL_ABOVE} GlobalSplitCriteria;
-dmDataType GlobalDataType;
-dmDescriptor *GlobalXdesc=NULL;
-dmDescriptor *GlobalYdesc=NULL;
-short *GlobalPixMask=NULL;
 
 
-/* Using the dmtools/dmimgio routines removes lots of duplicate code that was
- * originally here.  Also allow us to keep track of NULL/NaN value pixels
- * more easily
- */
-#include "dmimgio.h"
+
+//~ void  *GlobalData;     /* i: data array */
+//~ dmDataType GlobalDataType;
+//~ dmDescriptor *GlobalXdesc=NULL;
+//~ dmDescriptor *GlobalYdesc=NULL;
+//~ short *GlobalPixMask=NULL;
+//~ long GlobalXLen;        /* i: length of x-axis (full img) */
+//~ long GlobalYLen;        /* i: length of y-axis (full img) */
+//~ long GlobalLAxes[2];    /* X,Y lens togeether */
+
+Image *GlobalImage;
+
+
+
 
 
 
@@ -128,19 +130,18 @@ double get_snr(
 
   /* Determine SNR for current sub-image */
   for (ii=xs; ii<(xl+xs); ii++ ) {
-      if ( ii >= GlobalXLen ) {
+      if ( ii >= GlobalImage->lAxes[0] ) {
         continue; 
       }
     for (jj=ys; jj<(yl+ys); jj++) {
       long pix;
-      if ( jj >= GlobalYLen ) {
+      if ( jj >= GlobalImage->lAxes[1] ) {
         continue; 
       }
-      pix = ii+(jj*GlobalXLen);
+      pix = ii+(jj*GlobalImage->lAxes[0]);
 
 
-      pixval = get_image_value( GlobalData, GlobalDataType, ii, jj,
-          GlobalLAxes, GlobalPixMask);
+      pixval = get_image_value( GlobalImage, ii, jj);
       if ( ds_dNAN(pixval) ) {          
           continue;
       }
@@ -269,20 +270,19 @@ void abin_rec (
 
     /* store output values */
     for (ii=xs; ii<xs+xl; ii++ ) {
-      if ( ii >= GlobalXLen ) { /* shouldn't be needed anymore */
+      if ( ii >= GlobalImage->lAxes[0] ) { /* shouldn't be needed anymore */
       continue; 
       }
       for (jj=ys; jj<ys+yl; jj++) {
       long pix;
 
-      if ( jj >= GlobalYLen ) { /* shouldn't be needed anymore */
+      if ( jj >= GlobalImage->lAxes[1] ) { /* shouldn't be needed anymore */
         continue; 
       }
 
-    pix = ii+(jj*GlobalXLen);
+    pix = ii+(jj*GlobalImage->lAxes[0]);
 
-      pixval = get_image_value( GlobalData, GlobalDataType, ii, jj,
-          GlobalLAxes, GlobalPixMask);
+      pixval = get_image_value( GlobalImage, ii, jj);
 
       if ( ds_dNAN(pixval) ) {
         GlobalOutData[pix] = pixval;
@@ -311,8 +311,8 @@ void abin_rec (
     double regx[2], regy[2];
 
     /* Need the minus 0.5 since pixels are assumed to be cenetered on integer values */
-    convert_coords( GlobalXdesc,GlobalYdesc, xs-0.5, ys-0.5, regx+0, regy+0);
-    convert_coords( GlobalXdesc,GlobalYdesc, xs+xl-0.5, ys+yl-0.5, regx+1, regy+1);
+    convert_coords( GlobalImage->xdesc,GlobalImage->ydesc, xs-0.5, ys-0.5, regx+0, regy+0);
+    convert_coords( GlobalImage->xdesc,GlobalImage->ydesc, xs+xl-0.5, ys+yl-0.5, regx+1, regy+1);
     
     
     regAppendShape( maskRegion, "Rectangle", 1, 1, regx, regy,
@@ -326,7 +326,7 @@ void abin_rec (
 int load_error_image( char *errimg ) {
     
   /* Read Error Image */
-  unsigned long npix = GlobalXLen*GlobalYLen;
+  unsigned long npix = GlobalImage->lAxes[0]*GlobalImage->lAxes[1];
 
   if ( ( strlen(errimg) == 0 ) ||
        ( ds_strcmp_cis(errimg,"none" ) == 0 ) ) {
@@ -334,12 +334,11 @@ int load_error_image( char *errimg ) {
      double pixval;
      long xx,yy,jj;    
 
-     for (yy=0; yy<GlobalYLen; yy++) {
-        for ( xx=0;xx<GlobalXLen;xx++) {
+     for (yy=0; yy<GlobalImage->lAxes[1]; yy++) {
+        for ( xx=0;xx<GlobalImage->lAxes[0];xx++) {
 
-            jj = xx + yy*GlobalXLen;
-           pixval = get_image_value( GlobalData, GlobalDataType, xx,yy,
-                    GlobalLAxes, GlobalPixMask);
+            jj = xx + yy*GlobalImage->lAxes[0];
+           pixval = get_image_value( GlobalImage, xx,yy);
 
             if (ds_dNAN(pixval) ) {
                 GlobalDErr[jj] = 0;
@@ -364,8 +363,8 @@ int load_error_image( char *errimg ) {
     errDs = dmImageGetDataDescriptor(erBlock );
     enAxes = dmGetArrayDimensions( errDs, &elAxes );
     if ( (enAxes != 2 ) || 
-     ( elAxes[0] != GlobalXLen ) ||
-     ( elAxes[1] != GlobalYLen )    ) {
+     ( elAxes[0] != GlobalImage->lAxes[0] ) ||
+     ( elAxes[1] != GlobalImage->lAxes[1] )    ) {
       err_msg("ERROR: Error image must be 2D image with non-zero axes\n");
       return(-1);
     }
@@ -397,7 +396,6 @@ int abin (void)
 
   long npix;
 
-  dmBlock *inBlock;
 
   /* Read in all the data */
   clgetstr( "infile", infile, DS_SZ_FNAME );
@@ -431,44 +429,24 @@ int abin (void)
   ds_autoname( outfile, areafile, "areaimg", DS_SZ_FNAME );
 
 
-  /* Read the data */
-  /* TODO: Replace with dmimgio routines */
-
-  inBlock = dmImageOpen( infile );
-  if ( !inBlock ) {
-    err_msg("ERROR: Could not open infile='%s'\n", infile );
-    return(-1);
+  if (NULL == (GlobalImage = load_image(infile))) {
+      err_msg("ERROR: Problem opening infile '%s'", infile);
+      return(-1);
   }
 
 
-
-  long *lAxes=NULL;
-  regRegion *dss=NULL;
-  long null;
-  short has_null;
-  char unit[DS_SZ_KEYWORD];
-  memset( &unit[0], 0, DS_SZ_KEYWORD) ;
-
-  GlobalDataType = get_image_data( inBlock, &GlobalData, &lAxes, &dss, &null, &has_null );
-  get_image_wcs( inBlock, &GlobalXdesc, &GlobalYdesc );
-  GlobalPixMask = get_image_mask( inBlock, GlobalData, GlobalDataType, lAxes, dss, null, has_null, 
-                         GlobalXdesc, GlobalYdesc );
-  dmGetUnit( dmImageGetDataDescriptor(inBlock),unit, DS_SZ_KEYWORD );
-
-
-  npix = ( lAxes[0]*lAxes[1]);
+  npix = ( GlobalImage->lAxes[0]*GlobalImage->lAxes[1]);
   if (npix ==0 ) {
     err_msg("ERROR: Image is empty (one axis is 0 length)\n");
     return(-1);
   }
 
-
-  GlobalLAxes[0] = GlobalXLen = lAxes[0];
-  GlobalLAxes[1] = GlobalYLen = lAxes[1];
+  char unit[DS_SZ_KEYWORD];
+  memset( &unit[0], 0, DS_SZ_KEYWORD) ;
+  dmGetUnit( dmImageGetDataDescriptor(GlobalImage->block),unit, DS_SZ_KEYWORD );
 
 
   /* Allocate memory for the products */
-  //GlobalData = (float*)calloc(npix,sizeof(float));
   GlobalDErr = (float*)calloc(npix,sizeof(float));
   GlobalOutData = (float*)calloc(npix,sizeof(float));
   GlobalOutArea = (float*)calloc(npix,sizeof(float));
@@ -483,7 +461,7 @@ int abin (void)
   
   /* Start Algorithm */
 
-  abin_rec( 0, 0, GlobalXLen, GlobalYLen);
+  abin_rec( 0, 0, GlobalImage->lAxes[0], GlobalImage->lAxes[1]);
 
 
   /* Write out files -- NB: mask file has different datatypes and different extensions */
@@ -493,16 +471,16 @@ int abin (void)
 
 
   if ( ds_clobber( outfile, clobber, NULL) == 0 ) {
-    outBlock = dmImageCreate(outfile, dmFLOAT, lAxes, 2 );
+    outBlock = dmImageCreate(outfile, dmFLOAT, GlobalImage->lAxes, 2 );
     if ( outBlock == NULL ) {
       err_msg("ERROR: Could not create output '%s'\n", outfile);
     }
     outDes = dmImageGetDataDescriptor( outBlock );
-    dmBlockCopy( inBlock, outBlock, "HEADER"); 
-    ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
+    dmBlockCopy( GlobalImage->block, outBlock, "HEADER"); 
+    ds_copy_full_header( GlobalImage->block, outBlock, "dmnautilus", 0 );
     put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
     dmSetUnit( outDes, unit );
-    dmBlockCopyWCS( inBlock, outBlock);
+    dmBlockCopyWCS( GlobalImage->block, outBlock);
     dmSetArray_f( outDes, GlobalOutData, npix );
     dmImageClose( outBlock );
   } else {
@@ -511,16 +489,16 @@ int abin (void)
 
   if ( (strlen(areafile)>0) && (ds_strcmp_cis(areafile,"none")!=0) ) {
     if ( ds_clobber( areafile, clobber, NULL) == 0 ) {
-      outBlock = dmImageCreate(areafile, dmFLOAT, lAxes, 2 );
+      outBlock = dmImageCreate(areafile, dmFLOAT, GlobalImage->lAxes, 2 );
       if ( outBlock == NULL ) {
     err_msg("ERROR: Could not create output '%s'\n", areafile);
       }
       outDes = dmImageGetDataDescriptor( outBlock );
-      dmBlockCopy( inBlock, outBlock, "HEADER");
-      ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
+      dmBlockCopy( GlobalImage->block, outBlock, "HEADER");
+      ds_copy_full_header( GlobalImage->block, outBlock, "dmnautilus", 0 );
       put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
       dmSetUnit( outDes, "pixels" );
-      dmBlockCopyWCS( inBlock, outBlock);
+      dmBlockCopyWCS( GlobalImage->block, outBlock);
       dmSetArray_f( outDes, GlobalOutArea, npix );
       dmImageClose( outBlock );
     } else {
@@ -530,15 +508,15 @@ int abin (void)
 
   if ( (strlen(snrfile)>0) && (ds_strcmp_cis(snrfile,"none")!=0) ) {
     if ( ds_clobber( snrfile, clobber, NULL) == 0 ) {
-      outBlock = dmImageCreate(snrfile, dmFLOAT, lAxes, 2 );
+      outBlock = dmImageCreate(snrfile, dmFLOAT, GlobalImage->lAxes, 2 );
       if ( outBlock == NULL ) {
     err_msg("ERROR: Could not create output '%s'\n", snrfile);
       }
       outDes = dmImageGetDataDescriptor( outBlock );
-      dmBlockCopy( inBlock, outBlock, "HEADER");
-      ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
+      dmBlockCopy( GlobalImage->block, outBlock, "HEADER");
+      ds_copy_full_header( GlobalImage->block, outBlock, "dmnautilus", 0 );
       put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
-      dmBlockCopyWCS( inBlock, outBlock);
+      dmBlockCopyWCS( GlobalImage->block, outBlock);
       dmSetArray_f( outDes, GlobalOutSNR, npix );
       dmImageClose( outBlock );
     } else {
@@ -549,15 +527,15 @@ int abin (void)
 
   if ( (strlen(maskfile)>0) && (ds_strcmp_cis(maskfile,"none")!=0) ) {
     if ( ds_clobber( maskfile, clobber, NULL) == 0 ) {
-      outBlock = dmImageCreate(maskfile, dmULONG, lAxes, 2 );
+      outBlock = dmImageCreate(maskfile, dmULONG, GlobalImage->lAxes, 2 );
       if ( outBlock == NULL ) {
     err_msg("ERROR: Could not create output '%s'\n", maskfile);
       }
       outDes = dmImageGetDataDescriptor( outBlock );
-      dmBlockCopy( inBlock, outBlock, "HEADER");
-      ds_copy_full_header( inBlock, outBlock, "dmnautilus", 0 );
+      dmBlockCopy( GlobalImage->block, outBlock, "HEADER");
+      ds_copy_full_header( GlobalImage->block, outBlock, "dmnautilus", 0 );
       put_param_hist_info( outBlock, "dmnautilus", NULL, 0 );
-      dmBlockCopyWCS( inBlock, outBlock);
+      dmBlockCopyWCS( GlobalImage->block, outBlock);
       dmSetArray_ul( outDes, GlobalMask, npix );
 
       dmBlockClose( dmTableWriteRegion( dmBlockGetDataset( outBlock ),
@@ -570,10 +548,10 @@ int abin (void)
   }
   
   /* Must keep open until now to do all the wcs/hdr copies */
-  dmImageClose( inBlock ); 
+  dmImageClose( GlobalImage->block ); 
   
   /* make valgrind happy */
-  free(GlobalData);
+  // free(GlobalData);
   free(GlobalDErr);
   free(GlobalOutData);
   free(GlobalOutArea);
